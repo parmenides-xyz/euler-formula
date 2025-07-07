@@ -142,7 +142,7 @@ app.get('/api/treasuries', async (req, res) => {
   try {
     console.log('Fetching DAO treasury data from DeFiLlama...');
     
-    const apiKey = process.env.DEFILLAMA_API_KEY || 'b5a28bcfb6577c185c634712a2b8675a233aeb1ac665cd9cc8bf07f45ef7d747';
+    const apiKey = process.env.DEFILLAMA_API_KEY;
     const response = await axios.get(`https://pro-api.llama.fi/${apiKey}/api/treasuries`);
     
     console.log('Treasury API Response received:');
