@@ -1,12 +1,8 @@
 # FORMULA - DAO Merger Simulator
 
-**Interactive simulation platform for DAO mergers using EulerSwap's innovative one-sided Just-In-Time liquidity model**
-
-FORMULA provides comprehensive modeling and real-time simulation of DAO treasury mergers through EulerSwap's asymmetric AMM architecture, where only the surviving DAO provides liquidity while the phased-out DAO's token holders execute swaps through JIT borrowing mechanisms.
-
 ## Overview
 
-FORMULA simulates DAO mergers using EulerSwap's one-sided "JIT" liquidity provisioning. Unlike traditional AMMs requiring dual-sided liquidity, EulerSwap's architecture enables capital-efficient mergers where only the surviving DAO funds a vault, while the phased-out DAO's tokens serve as collateral for JIT borrowing. This creates a truly asymmetric pool with dynamic price discovery through configurable concentration parameters.
+FORMULA simulates DAO mergers using EulerSwap's one-sided "JIT" liquidity provisioning. Unlike traditional AMMs requiring dual-sided liquidity, EulerSwap's architecture enables capital-efficient mergers where only the surviving DAO funds a vault, while the phased-out DAO's tokens serve as collateral for "JIT" borrowing. This creates a truly asymmetric pool with dynamic price discovery through configurable concentration parameters.
 
 ## Problems Solved by EulerSwap's Approach
 
@@ -22,7 +18,7 @@ Traditional merger proposals set static exchange rates that become obsolete duri
 - **Arbitrage Exploitation**: Fixed rates enable MEV extraction and front-running
 - **Community Disputes**: Token holders argue endlessly over "fair" valuations
 
-**EulerSwap's Dynamic Solution:**
+**EulerSwap's Solution:**
 ```javascript
 // Traditional Fixed Rate (Fei-Rari approach)
 exchangeRate = 26.7; // Set at proposal, unchangeable for months
