@@ -6,7 +6,7 @@ FORMULA provides comprehensive modeling and real-time simulation of DAO treasury
 
 ## Overview
 
-FORMULA simulates DAO mergers using EulerSwap's one-sided JIT liquidity provisioning model. Unlike traditional AMMs requiring dual-sided liquidity, EulerSwap's architecture enables capital-efficient mergers where only the surviving DAO funds a vault, while the phased-out DAO's tokens serve as collateral for JIT borrowing. This creates a truly asymmetric pool with dynamic price discovery through configurable concentration parameters.
+FORMULA simulates DAO mergers using EulerSwap's one-sided "JIT" liquidity provisioning. Unlike traditional AMMs requiring dual-sided liquidity, EulerSwap's architecture enables capital-efficient mergers where only the surviving DAO funds a vault, while the phased-out DAO's tokens serve as collateral for JIT borrowing. This creates a truly asymmetric pool with dynamic price discovery through configurable concentration parameters.
 
 ## Problems Solved by EulerSwap's Approach
 
@@ -92,20 +92,20 @@ This explains why 49% of DAO M&A focuses on "acquiring talent or specific assets
 - **Battle-Tested Infrastructure**: Uses existing Euler lending protocols
 - **Gradual Execution**: Allows halting if security issues emerge
 
-### 📊 **Solving the "Acquihire" Problem**
+### **Solving the "Acquihire" Problem**
 
 **Why 49% of DAO M&A is Just Talent/Asset Acquisition:**
 - **Traditional Barriers**: Full mergers require massive capital lockup and complex governance
 - **Contributor Retention**: No employment contracts mean teams can leave post-merger
 - **Valuation Uncertainty**: Hard to value governance rights and future cash flows
 
-**EulerSwap's Complete Merger Solution:**
+**EulerSwap's Solution:**
 - **Lower Capital Requirements**: Enables full protocol mergers, not just acquihires
 - **Gradual Integration**: Teams see fair market value throughout transition
 - **Transparent Valuation**: Real-time pricing reduces uncertainty
 - **Flexible Execution**: Can pause/adjust based on contributor feedback
 
-### **Summary: From 65 Failed Experiments to Scalable Solution**
+### **Summary**
 
 The analysis of 65+ DAO M&A deals reveals why traditional approaches fail:
 - **Average deal size of only $30M** (vs $705M for other Web3 M&A) due to capital constraints
@@ -118,17 +118,6 @@ EulerSwap's one-sided JIT liquidity model directly addresses each failure point,
 - **50% less capital required** with 40x efficiency gains
 - **Risk isolation** through vault segregation
 - **Continuous execution** without governance gridlock
-
-## Table of Contents
-
-- [Problems Solved](#problems-solved-by-eulerswaps-approach)
-- [Key Features](#key-features)
-- [Technical Architecture](#technical-architecture)
-- [Repository Structure](#repository-structure)
-- [Getting Started](#getting-started)
-- [EulerSwap Core Concepts](#eulerswap-core-concepts)
-- [API Documentation](#api-documentation)
-- [License](#license)
 
 ## Key Features
 
@@ -288,7 +277,6 @@ Idle Capital: 85% locked with no yield
 ```
 Capital Required: Only surviving token vault funding
 Liquidity Utilization: 95%+ (concentrated ranges)
-Capital Efficiency: 32-40x improvement
 Idle Capital: Minimal - excess earns vault yield
 ```
 
@@ -482,7 +470,3 @@ const priceImpact = (currentPrice - initialPrice) / initialPrice * 100;
 ## License
 
 This project is licensed under the MIT License.
-
----
-
-*FORMULA leverages EulerSwap's groundbreaking one-sided JIT liquidity model to provide the most capital-efficient DAO merger simulation platform available, achieving 32-40x improvement over traditional AMM approaches.*
