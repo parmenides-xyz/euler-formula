@@ -56,7 +56,7 @@ Traditional Dual-Sided Pool (e.g., Fei-Rari):
 
 **EulerSwap's Capital Liberation:**
 ```
-EulerSwap One-Sided JIT Model:
+One-Sided "JIT" Liquidity via EulerSwap:
 ├── Phased-out DAO: $0 upfront (tokens as collateral only)
 ├── Surviving DAO: $15M in yield-earning vault
 ├── Total Capital Required: 50% reduction
@@ -92,19 +92,6 @@ This explains why 49% of DAO M&A focuses on "acquiring talent or specific assets
 - **Battle-Tested Infrastructure**: Uses existing Euler lending protocols
 - **Gradual Execution**: Allows halting if security issues emerge
 
-### **Solving the "Acquihire" Problem**
-
-**Why 49% of DAO M&A is Just Talent/Asset Acquisition:**
-- **Traditional Barriers**: Full mergers require massive capital lockup and complex governance
-- **Contributor Retention**: No employment contracts mean teams can leave post-merger
-- **Valuation Uncertainty**: Hard to value governance rights and future cash flows
-
-**EulerSwap's Solution:**
-- **Lower Capital Requirements**: Enables full protocol mergers, not just acquihires
-- **Gradual Integration**: Teams see fair market value throughout transition
-- **Transparent Valuation**: Real-time pricing reduces uncertainty
-- **Flexible Execution**: Can pause/adjust based on contributor feedback
-
 ### **Summary**
 
 The analysis of 65+ DAO M&A deals reveals why traditional approaches fail:
@@ -121,14 +108,11 @@ EulerSwap's one-sided JIT liquidity model directly addresses each failure point,
 
 ## Key Features
 
-- **EulerSwap One-Sided JIT Model**: Simulate asymmetric mergers using EulerSwap's vault-based architecture
+- **EulerSwap One-Sided "JIT" Liquidity**: Simulate asymmetric mergers using EulerSwap's vault-based architecture
 - **Interactive Batch Execution**: Real-time animation of swap execution with customizable strategies (500 rapid vs 1000 gradual batches)
-- **Actual vs Theoretical Impact**: Track real execution impact vs equilibrium calculations using EulerSwap's concentration parameters
 - **Dynamic AMM Curves**: Configure EulerSwap's concentrationX/concentrationY parameters for optimal price discovery
-- **JIT Borrowing Simulation**: Model real-time borrowing from pre-funded surviving token vaults
+- **Borrowing Simulation**: Model real-time borrowing from pre-funded surviving token vaults
 - **EulerSwap Pool Configuration**: Generate exact vault addresses, equilibrium reserves, and AMM parameters
-- **Capital Efficiency Analysis**: Demonstrate 32-40x efficiency gains vs traditional dual-sided AMMs
-- **AI-Powered EulerSwap Analysis**: FORMULA assistant with deep knowledge of EulerSwap mechanics
 
 ## Technical Architecture
 
@@ -136,7 +120,7 @@ FORMULA integrates EulerSwap's core mathematical and architectural components:
 
 - **Frontend**: React 18 with real-time EulerSwap batch execution simulation
 - **EulerSwap AMM Mathematics**: Implementation of concentration parameter calculations and asymmetric curve dynamics
-- **JIT Borrowing Engine**: Simulation of EulerSwap's vault-based lending mechanism
+- **"JIT" Borrowing Engine**: Simulation of EulerSwap's vault-based lending mechanism
 - **Price Discovery**: Real-time tracking using EulerSwap's dynamic pricing formulas
 - **Vault Configuration**: Generate EulerSwap-compatible pool parameters and addresses
 - **Data Integration**: DeFiLlama API for treasury data with EulerSwap parameter optimization
