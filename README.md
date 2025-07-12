@@ -446,7 +446,6 @@ const priceImpact = (currentPrice - initialPrice) / initialPrice * 100;
 ## EulerSwap References
 
 - **EulerSwap GitHub**: [https://github.com/euler-xyz/euler-swap](https://github.com/euler-xyz/euler-swap)
-- **EulerSwap Documentation**: [https://docs.euler.xyz/](https://docs.euler.xyz/)
 - **Concentration Mathematics**: Based on EulerSwap's `OneSidedCurve.t.sol` test implementations
 - **Vault Architecture**: Implements EulerSwap's asymmetric vault lending model
 - **JIT Borrowing**: Simulates EulerSwap's `FundsLib.withdrawAssets()` functionality
