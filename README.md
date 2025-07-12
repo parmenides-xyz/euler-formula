@@ -12,7 +12,7 @@ FORMULA simulates DAO mergers using EulerSwap's one-sided JIT liquidity provisio
 
 Based on analysis of 65+ DAO M&A deals (averaging $30M each), traditional merger approaches suffer from fundamental flaws that EulerSwap's one-sided JIT liquidity model directly addresses:
 
-### 🎯 **The Valuation Crisis: Dynamic Price Discovery vs Fixed-Rate Swaps**
+### **The Valuation Crisis: Dynamic Price Discovery vs Fixed-Rate Swaps**
 
 **The Fixed-Rate Problem (See: Fei-Rari & Gnosis-xDAI):**
 Traditional merger proposals set static exchange rates that become obsolete during lengthy governance processes:
@@ -41,7 +41,7 @@ EulerSwap enables **continuous price discovery** that:
 - **Adapts to Volatility**: Token prices can fluctuate 50%+ during merger execution
 - **Maintains Community Trust**: Transparent, market-driven pricing
 
-### 💰 **Why DAO M&A Deals Average Only $30M (vs $705M for Other Web3 M&A)**
+### **Why DAO M&A Deals Average Only $30M (vs $705M for Other Web3 M&A)**
 
 **The Capital Lock-up Problem:**
 DAO mergers require massive idle capital that smaller DAOs can't afford:
@@ -66,7 +66,7 @@ EulerSwap One-Sided JIT Model:
 
 This explains why 49% of DAO M&A focuses on "acquiring talent or specific assets" - full mergers require too much locked capital under traditional models.
 
-### 🏛️ **Governance Gridlock & Community Backlash**
+### **Governance Gridlock & Community Backlash**
 
 **The Governance Crisis (Fei-Rari & Gnosis-xDAI Failures):**
 - **Fei-Rari**: Governance disputes over $80M hack reimbursement led to complete shutdown
@@ -79,7 +79,7 @@ This explains why 49% of DAO M&A focuses on "acquiring talent or specific assets
 - **Built-in "Ragequit"**: Dissenting holders exit at fair market value, not fixed rates
 - **Transparent Metrics**: Real-time price discovery shows actual market consensus
 
-### 🛡️ **Security & Risk Management**
+### **Security & Risk Management**
 
 **Traditional Vulnerabilities:**
 - **Fei-Rari**: $80M hack post-merger destroyed the combined entity
@@ -105,7 +105,7 @@ This explains why 49% of DAO M&A focuses on "acquiring talent or specific assets
 - **Transparent Valuation**: Real-time pricing reduces uncertainty
 - **Flexible Execution**: Can pause/adjust based on contributor feedback
 
-### 🎯 **Summary: From 65 Failed Experiments to Scalable Solution**
+### **Summary: From 65 Failed Experiments to Scalable Solution**
 
 The analysis of 65+ DAO M&A deals reveals why traditional approaches fail:
 - **Average deal size of only $30M** (vs $705M for other Web3 M&A) due to capital constraints
