@@ -106,17 +106,25 @@ const SuccessNotification = ({ show, onClose, title, message, impact, details })
                     transition={{ delay: 0.7 }}
                     className="p-4 bg-white/5 rounded-xl border border-white/10 mb-6"
                   >
-                    <div className="flex items-center justify-center space-x-6 text-sm">
-                      <div className="flex items-center space-x-2">
-                        <TrendingUp className="w-4 h-4 text-emerald-400" />
-                        <span className="text-white/70">Revenue Impact:</span>
-                        <span className="text-emerald-400 font-medium">{impact.revenue}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Zap className="w-4 h-4 text-amber-400" />
-                        <span className="text-white/70">Efficiency:</span>
-                        <span className="text-amber-400 font-medium">{impact.efficiency}</span>
-                      </div>
+                    <div className="grid grid-cols-1 gap-2 text-sm">
+                      {impact.priceImpact && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-white/70">Price Impact:</span>
+                          <span className="text-emerald-400 font-medium">{impact.priceImpact}</span>
+                        </div>
+                      )}
+                      {impact.totalValue && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-white/70">Total Value:</span>
+                          <span className="text-blue-400 font-medium">{impact.totalValue}</span>
+                        </div>
+                      )}
+                      {impact.dilution && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-white/70">Dilution:</span>
+                          <span className="text-yellow-400 font-medium">{impact.dilution}</span>
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 )}

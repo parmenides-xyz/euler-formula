@@ -26,38 +26,54 @@ export let marketData = [];
   marketData = await fetchPriceData();
 })();
   
-// Fetch treasury data from API
-const fetchTreasuryData = async () => {
+// Fetch circulation data for all tracked tokens
+const fetchCirculationData = async () => {
   try {
-    const response = await fetch('http://localhost:3001/api/treasuries');
-    const result = await response.json();
-    if (result.success) {
-      return result.data.map(dao => {
-        // Get the first treasury entry (most DAOs have one main treasury)
-        const mainTreasury = dao.treasuries[0];
-        if (!mainTreasury) return null;
+    // Get price data first to know which tokens to fetch
+    const priceResponse = await fetch('http://localhost:3001/api/prices');
+    const priceResult = await priceResponse.json();
+    
+    if (!priceResult.success) return [];
+    
+    const tokens = priceResult.data;
+    const circulationPromises = tokens.map(async (token) => {
+      try {
+        const response = await fetch(`http://localhost:3001/api/token-circulation/${token.symbol}`);
+        const result = await response.json();
         
-        const tokenBreakdowns = mainTreasury.tokenBreakdowns || {};
-        
-        return {
-          symbol: dao.symbol,
-          ownTokens: tokenBreakdowns.ownTokens || 0,
-          stablecoins: tokenBreakdowns.stablecoins || 0
-        };
-      }).filter(Boolean); // Remove null entries
-    }
+        if (result.success && result.data) {
+          return {
+            symbol: token.symbol,
+            circulatingSupply: result.data.circulatingSupply || 0,
+            marketCap: (result.data.circulatingSupply || 0) * (token.currentPrice || 0)
+          };
+        }
+      } catch (error) {
+        console.error(`Error fetching circulation for ${token.symbol}:`, error);
+      }
+      return null;
+    });
+    
+    const results = await Promise.all(circulationPromises);
+    return results.filter(Boolean); // Remove null entries
   } catch (error) {
-    console.error('Error fetching treasury data:', error);
+    console.error('Error fetching circulation data:', error);
   }
   return [];
 };
 
-// DAO treasury composition - populated from /api/treasuries endpoint
-export let treasuryData = [];
+// DAO circulation data - populated from /api/token-circulation endpoint
+export let circulationData = [];
 
-// Initialize treasury data on module load
+// Initialize circulation data on module load
 (async () => {
-  treasuryData = await fetchTreasuryData();
+  circulationData = await fetchCirculationData();
+  
+  // Refresh data every 5 minutes
+  setInterval(async () => {
+    marketData = await fetchPriceData();
+    circulationData = await fetchCirculationData();
+  }, 5 * 60 * 1000);
 })();
   
   // AI Analysis modules for DAO merger optimization
@@ -82,25 +98,35 @@ export let treasuryData = [];
       avg_correlation: '0.68',
       high_correlation_pairs: 12
     },
-    collateral_optimizer: {
-      name: 'USDC Collateral Optimizer',
+    pool_parameter_optimizer: {
+      name: 'Pool Parameter Optimizer',
       status: 'active',
       confidence: 94.8,
       last_action: '1 minute ago',
-      description: 'Optimizes USDC collateral usage for maximum capital efficiency',
+      description: 'Optimizes asymmetric concentration parameters for one-sided pools',
       optimizations_today: 67,
-      avg_ltv_achieved: '85.2%',
-      capital_efficiency: '5.7x'
+      avg_concentration_x: '0.42',
+      avg_concentration_y: '0.88'
     },
-    crossdeposit_simulator: {
-      name: 'Cross-Deposit Mechanism Simulator',
+    jit_liquidity_simulator: {
+      name: 'JIT Liquidity Simulator',
       status: 'active',
       confidence: 91.2,
       last_action: 'continuous',
-      description: 'Simulates cross-vault deposit effects on liquidity availability',
+      description: 'Simulates one-sided JIT liquidity provision and vault funding needs',
       simulations_today: 423,
-      liquidity_multiplier: '2.3x',
+      avg_funding_ratio: '1.2x',
       successful_scenarios: '94.7%'
+    },
+    batch_execution_planner: {
+      name: 'Batch Execution Planner',
+      status: 'active',
+      confidence: 93.5,
+      last_action: '3 minutes ago',
+      description: 'Plans optimal batch sizes and execution timing for merger swaps',
+      batches_planned: 89,
+      avg_batch_size: '5-15 batches',
+      price_impact_reduction: '67%'
     }
   };
   
@@ -131,24 +157,24 @@ export let treasuryData = [];
     {
       id: 3,
       timestamp: new Date(Date.now() - 15 * 60 * 1000),
-      type: 'treasury',
+      type: 'dilution',
       severity: 'info',
-      title: 'Treasury Movement Detected',
-      message: 'Aave treasury moved 15M USDC to vault. Merger capacity increased by $13.5M',
+      title: 'Favorable Dilution Detected',
+      message: 'AAVE-COMP merger would result in only 12% dilution. Excellent merger candidate',
       confidence: 96,
-      module: 'collateral_optimizer',
-      data: { dao: 'AAVE', usdcMoved: 15000000, capacityIncrease: 13500000 }
+      module: 'pool_parameter_optimizer',
+      data: { daoA: 'AAVE', daoB: 'COMP', dilutionPercentage: 12, feasibilityScore: 88 }
     },
     {
       id: 4,
       timestamp: new Date(Date.now() - 22 * 60 * 1000),
-      type: 'vault',
+      type: 'concentration',
       severity: 'warning',
-      title: 'Vault Utilization Rising',
-      message: 'USDC Prime Vault utilization at 89.7%. Borrowing costs may increase for large swaps',
+      title: 'Concentration Adjustment Recommended',
+      message: 'High volatility in LDO suggests lowering concentrationX to 0.35 for better price discovery',
       confidence: 91,
-      module: 'crossdeposit_simulator',
-      data: { vault: 'USDC_PRIME', utilization: 0.78, borrowAPY: 5.2 }
+      module: 'jit_liquidity_simulator',
+      data: { token: 'LDO', currentVolatility: 0.65, recommendedConcentrationX: 0.35 }
     },
     {
       id: 5,
@@ -156,10 +182,10 @@ export let treasuryData = [];
       type: 'merger',
       severity: 'success',
       title: 'Merger Parameters Optimized',
-      message: 'UNI-AAVE merger feasibility: 94%. Optimal swap size: $125M each side',
+      message: 'UNI-AAVE merger feasibility: 94%. Required mint: 3.2M AAVE tokens',
       confidence: 94,
-      module: 'collateral_optimizer',
-      data: { daoA: 'UNI', daoB: 'AAVE', feasibility: 0.94, optimalSwap: 125000000 }
+      module: 'pool_parameter_optimizer',
+      data: { daoA: 'UNI', daoB: 'AAVE', feasibility: 0.94, requiredMint: 3200000 }
     }
   ];
   
@@ -168,7 +194,7 @@ export let treasuryData = [];
   
   export default {
     marketData,
-    treasuryData,
+    circulationData,
     aiModules,
     liveEvents
   };

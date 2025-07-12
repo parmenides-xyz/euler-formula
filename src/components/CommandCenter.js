@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import React, { useEffect, useState } from 'react';
-import { treasuryData, liveEvents, marketData } from '../services/mergerDataService';
+import { liveEvents, marketData } from '../services/mergerDataService';
 
 import AnimatedNumber from './AnimatedNumber';
 import MarkdownRenderer from './MarkdownRenderer';
@@ -24,7 +24,7 @@ const CommandCenter = () => {
     {
       id: 1,
       type: 'ai',
-      content: "Hello! I'm FORMULA, your DAO merger assistant. How can I help you analyze merger opportunities and optimize cross-collateralization strategies today?",
+      content: "Hello! I'm FORMULA, your DAO merger assistant. How can I help you analyze merger opportunities using one-sided JIT liquidity today?",
       timestamp: new Date(),
       confidence: 95
     }
@@ -47,7 +47,7 @@ const CommandCenter = () => {
     impact: null
   });
   
-  const { vaults } = useData();
+  const { prices, circulationData, mergerConfiguration } = useData();
   const [isLoadingChat, setIsLoadingChat] = useState(false);
   
   // Liquid glass containers
@@ -56,14 +56,12 @@ const CommandCenter = () => {
 
   // Live merger metrics
   const [liveMetrics, setLiveMetrics] = useState({
-    borrowAPY: vaults?.currentAPY || '5.2%',
-    vaultUtilization: vaults?.utilizationPercent || 78.5,
-    capitalEfficiency: 5.7,
+    activeMergers: mergerConfiguration ? 1 : 0,
+    priceDiscoveryProgress: 0,
+    averageDilution: 8.5,
     mergerSuccessRate: 94.2,
-    totalTreasuryValue: 0,
-    activeMergers: 3,
-    liquidityMultiplier: 2.3,
-    crossDepositRatio: 85.2
+    viableTokens: 0,
+    totalMarketCap: 0
   });
 
   useEffect(() => {
@@ -124,18 +122,29 @@ const CommandCenter = () => {
     initSpeechRecognition();
 
 
+    // Calculate initial metrics
+    const viableCount = circulationData ? 
+      Object.values(circulationData).filter(token => token.marketCap > 10000000).length : 0;
+    const totalMktCap = circulationData ?
+      Object.values(circulationData).reduce((sum, token) => sum + (token.marketCap || 0), 0) : 0;
+    
+    setLiveMetrics(prev => ({
+      ...prev,
+      viableTokens: viableCount,
+      totalMarketCap: totalMktCap,
+      activeMergers: mergerConfiguration ? 1 : 0
+    }));
+
     // Simulate real-time merger metrics updates
     const interval = setInterval(() => {
       setLiveMetrics(prev => {
         const newMetrics = {
           ...prev,
-          vaultUtilization: Math.max(70, Math.min(95, prev.vaultUtilization + (Math.random() - 0.5) * 2)),
-          capitalEfficiency: Math.max(4, Math.min(7, prev.capitalEfficiency + (Math.random() - 0.5) * 0.3)),
-          mergerSuccessRate: Math.max(85, Math.min(98, prev.mergerSuccessRate + (Math.random() - 0.5) * 1.5)),
-          liquidityMultiplier: Math.max(1.5, Math.min(3, prev.liquidityMultiplier + (Math.random() - 0.5) * 0.1))
+          priceDiscoveryProgress: mergerConfiguration ? 
+            Math.min(100, prev.priceDiscoveryProgress + Math.random() * 5) : 0,
+          averageDilution: Math.max(5, Math.min(15, prev.averageDilution + (Math.random() - 0.5) * 0.5)),
+          mergerSuccessRate: Math.max(85, Math.min(98, prev.mergerSuccessRate + (Math.random() - 0.5) * 1.5))
         };
-
-        // Metrics updated successfully
 
         return newMetrics;
       });
@@ -148,7 +157,7 @@ const CommandCenter = () => {
         speechRecognition.stop();
       }
     };
-  }, []);
+  }, [circulationData, mergerConfiguration]);
 
   // Toggle microphone input for speech recognition
   const handleMicrophoneToggle = () => {
@@ -258,24 +267,24 @@ const CommandCenter = () => {
         title: 'Correlation Analysis Complete',
         message: 'Identified 12 high-correlation pairs optimal for concentrated liquidity positions.',
         impact: {
-          revenue: '5-7x capital efficiency',
+          revenue: 'High correlation pairs',
           efficiency: '0.81 max correlation'
         }
       },
-      'collateral_optimizer': {
-        title: 'Collateral Optimization Complete',
-        message: 'Successfully optimized USDC deployment achieving 85.2% LTV with 5.7x capital efficiency.',
+      'pool_parameter_optimizer': {
+        title: 'Pool Parameters Optimized',
+        message: 'Asymmetric concentration parameters optimized for one-sided JIT liquidity provision.',
         impact: {
-          revenue: '+$45M capacity',
-          efficiency: '5.7x multiplier'
+          revenue: 'Minimized price impact',
+          efficiency: '0.25/0.85 concentration'
         }
       },
-      'crossdeposit_simulator': {
-        title: 'Cross-Deposit Simulation Complete',
-        message: 'Simulation shows 94.7% success rate with 2.3x liquidity multiplication effect.',
+      'batch_execution_planner': {
+        title: 'Batch Execution Plan Ready',
+        message: 'Optimal batch strategy calculated: 12 batches over 5 days with minimal price impact.',
         impact: {
-          revenue: '2.3x liquidity',
-          efficiency: '94.7% success'
+          revenue: '67% impact reduction',
+          efficiency: '12 optimal batches'
         }
       }
     };
@@ -302,19 +311,19 @@ const CommandCenter = () => {
         'Identifying optimal merger pairs...',
         'Calculating concentration parameters...'
       ],
-      'collateral_optimizer': [
-        'Analyzing USDC vault availability...',
-        'Calculating optimal LTV ratios...',
-        'Simulating collateral deployment...',
-        'Optimizing capital efficiency multipliers...',
-        'Generating collateral strategy...'
+      'pool_parameter_optimizer': [
+        'Analyzing token pair characteristics...',
+        'Calculating asymmetric concentration parameters...',
+        'Optimizing for one-sided liquidity provision...',
+        'Simulating price discovery efficiency...',
+        'Generating optimal pool configuration...'
       ],
-      'crossdeposit_simulator': [
-        'Loading cross-vault parameters...',
-        'Simulating deposit mechanisms...',
-        'Calculating liquidity multiplication effects...',
-        'Analyzing vault interaction dynamics...',
-        'Generating simulation results...'
+      'batch_execution_planner': [
+        'Loading merger configuration parameters...',
+        'Calculating optimal batch sizes...',
+        'Simulating price impact for each batch...',
+        'Optimizing execution timing intervals...',
+        'Generating batch execution strategy...'
       ]
     };
     return steps[actionType] || ['Processing request...'];
@@ -337,55 +346,55 @@ const CommandCenter = () => {
 ✓ UNI-COMP showing lowest volatility correlation
 ✓ Optimal swap timing: low volatility windows
 
-**Strategic Insight:** Higher volatility requires larger collateral buffers. Consider 90% LTV for stable pairs, 85% for volatile combinations.`,
+**Strategic Insight:** Higher volatility requires more conservative concentration parameters and additional execution batches to minimize price impact.`,
 
       'correlation_calculator': `**Correlation Analysis Complete** 🔗
 
 **Top Correlated Pairs:**
-• UNI-COMP: 0.81 correlation (excellent for tight ranges)
+• UNI-COMP: 0.81 correlation (excellent for mergers)
 • AAVE-CRV: 0.76 correlation (strong positive)
 • LDO-RPL: 0.73 correlation (liquid staking synergy)
 • SNX-BAL: 0.68 correlation (DeFi infrastructure)
 
 **Merger Recommendations:**
-✓ UNI-COMP: Use 0.95 concentration parameter
-✓ AAVE-CRV: Deploy up to $150M per side
-✓ Low correlation pairs need wider ranges
+✓ UNI-COMP: High correlation supports tight price discovery
+✓ AAVE-CRV: Suitable for gradual execution strategy
+✓ Low correlation pairs need more batches
 ✓ 12 high-correlation opportunities identified
 
-**Capital Efficiency:** High correlation enables 5-7x capital multiplication through tighter liquidity concentration.`,
+**Strategic Insight:** High correlation reduces price discovery risk and enables smoother merger execution with minimal market disruption.`,
 
-      'collateral_optimizer': `**USDC Collateral Optimization Complete** 💵
+      'pool_parameter_optimizer': `**Pool Parameter Optimization Complete** 🎯
 
-**Vault Analysis:**
-• Available to borrow: $127.5M USDC
-• Current utilization: 78.5%
-• Optimal LTV achieved: 85.2%
-• Capital efficiency multiplier: 5.7x
+**Asymmetric Configuration:**
+• Phased-out token (X): 0.25 concentration
+• Surviving token (Y): 0.85 concentration
+• Price discovery zone: ±15% from equilibrium
+• One-sided liquidity model confirmed
 
 **Optimization Results:**
-✓ Identified $45M additional borrowing capacity
-✓ Reduced collateral requirements by 12%
-✓ 67 optimization scenarios analyzed
-✓ Risk-adjusted returns improved 23%
+✓ Minimized price impact for large swaps
+✓ 67 parameter combinations analyzed
+✓ Optimal for gradual price discovery
+✓ Supports 5-30 batch execution
 
-**Strategic Deployment:** Cross-collateralization enables each DAO to borrow 85-90% LTV against USDC, multiplying effective liquidity by 5-7x.`,
+**Strategic Configuration:** Asymmetric parameters enable efficient price discovery while protecting the surviving token from excessive dilution.`,
 
-      'crossdeposit_simulator': `**Cross-Deposit Simulation Complete** 🔄
+      'batch_execution_planner': `**Batch Execution Plan Complete** 📊
 
-**Simulation Results:**
-• Liquidity multiplier achieved: 2.3x
-• Successful scenarios: 94.7% (401/423)
-• Optimal deposit ratio: 85% of swap size
-• Vault interaction efficiency: 91.2%
+**Execution Strategy:**
+• Optimal batch count: 12 batches
+• Time span: 5 days (10 hours per batch)
+• Price impact per batch: 0.8-1.2%
+• Total price impact reduction: 67%
 
-**Key Findings:**
-✓ Each swap deposits increase opposite vault liquidity
-✓ Cascading effect amplifies available capital
-✓ System becomes more efficient with scale
-✓ No liquidity crunch in 94.7% of scenarios
+**Batch Distribution:**
+✓ Batches 1-3: 15% each (price discovery phase)
+✓ Batches 4-9: 8% each (steady execution)
+✓ Batches 10-12: 6% each (completion phase)
+✓ Adapts to market conditions in real-time
 
-**Mechanism Insight:** Cross-deposits create a positive feedback loop - each merger improves conditions for subsequent mergers through increased vault liquidity.`
+**Strategic Execution:** Phased batching minimizes market disruption while allowing natural price discovery through the one-sided JIT liquidity mechanism.`
     };
     return responses[actionType] || 'Analysis complete. Results processed successfully.';
   };
@@ -425,40 +434,40 @@ const CommandCenter = () => {
                 <Brain className="w-16 h-16 text-blue-400" />
                 <div>
                   <h1 className="text-5xl font-extralight text-white tracking-tight">Merger Command Center</h1>
-                  <p className="text-xl text-white/60 font-light">DAO Cross-Collateralization Control</p>
+                  <p className="text-xl text-white/60 font-light">One-Sided JIT Liquidity Analysis</p>
                 </div>
               </div>
               
               <div className="grid grid-cols-4 gap-8">
                 <div className="text-center">
                   <AnimatedNumber 
-                    value={parseFloat(liveMetrics.borrowAPY)} 
-                    suffix="%" 
-                    decimals={1}
+                    value={liveMetrics.activeMergers} 
+                    suffix="" 
+                    decimals={0}
                     fontSize="text-2xl"
                     color="text-yellow-400"
                   />
-                  <div className="text-white/60 text-sm">Borrow APY</div>
+                  <div className="text-white/60 text-sm">Active Mergers</div>
                 </div>
                 <div className="text-center">
                   <AnimatedNumber 
-                    value={liveMetrics.vaultUtilization} 
+                    value={liveMetrics.priceDiscoveryProgress} 
                     suffix="%" 
                     decimals={1}
                     fontSize="text-2xl"
                     color="text-blue-400"
                   />
-                  <div className="text-white/60 text-sm">Vault Utilization</div>
+                  <div className="text-white/60 text-sm">Price Discovery</div>
                 </div>
                 <div className="text-center">
                   <AnimatedNumber 
-                    value={liveMetrics.capitalEfficiency} 
-                    suffix="x" 
+                    value={liveMetrics.averageDilution} 
+                    suffix="%" 
                     decimals={1}
                     fontSize="text-2xl"
                     color="text-green-400"
                   />
-                  <div className="text-white/60 text-sm">Capital Efficiency</div>
+                  <div className="text-white/60 text-sm">Avg Dilution</div>
                 </div>
                 <div className="text-center">
                   <AnimatedNumber 
@@ -550,7 +559,7 @@ const CommandCenter = () => {
                       value={inputText}
                       onChange={(e) => setInputText(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                      placeholder={isListening ? "🎙️ Listening... speak now" : "Ask FORMULA: 'Analyze merger opportunities' or 'Check vault utilization'"}
+                      placeholder={isListening ? "🎙️ Listening... speak now" : "Ask FORMULA: 'Analyze merger opportunities' or 'Check price discovery progress'"}
                       className={`w-full bg-white/10 text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 ${
                         isListening ? 'ring-red-400/30 border-red-400/50' : 'ring-blue-500/50 border-white/20'
                       } backdrop-blur-sm border placeholder-white/50 transition-all`}
@@ -719,53 +728,53 @@ const CommandCenter = () => {
                 </button>
                 
                 <button 
-                  onClick={() => runAnalysisSimulation('collateral_optimizer')}
-                  disabled={executingActions.has('collateral_optimizer')}
+                  onClick={() => runAnalysisSimulation('pool_parameter_optimizer')}
+                  disabled={executingActions.has('pool_parameter_optimizer')}
                   className="relative p-3 bg-emerald-600/20 hover:bg-emerald-600/30 disabled:opacity-50 rounded-xl border border-emerald-500/30 transition-all group overflow-hidden"
                 >
-                  {executingActions.has('collateral_optimizer') ? (
+                  {executingActions.has('pool_parameter_optimizer') ? (
                     <>
                       <div className="absolute inset-0 bg-emerald-500/20">
                         <div 
                           className="h-full bg-emerald-500/40 transition-all duration-300"
-                          style={{ width: `${actionProgress['collateral_optimizer'] || 0}%` }}
+                          style={{ width: `${actionProgress['pool_parameter_optimizer'] || 0}%` }}
                         />
                       </div>
                       <div className="relative">
                         <div className="w-5 h-5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                        <div className="text-xs text-white">{actionProgress['collateral_optimizer'] || 0}%</div>
+                        <div className="text-xs text-white">{actionProgress['pool_parameter_optimizer'] || 0}%</div>
                       </div>
                     </>
                   ) : (
                     <>
                       <Brain className="w-5 h-5 text-emerald-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-                      <div className="text-xs text-white">Collateral Optimizer</div>
+                      <div className="text-xs text-white">Pool Parameters</div>
                     </>
                   )}
                 </button>
                 
                 <button 
-                  onClick={() => runAnalysisSimulation('crossdeposit_simulator')}
-                  disabled={executingActions.has('crossdeposit_simulator')}
+                  onClick={() => runAnalysisSimulation('batch_execution_planner')}
+                  disabled={executingActions.has('batch_execution_planner')}
                   className="relative p-3 bg-purple-600/20 hover:bg-purple-600/30 disabled:opacity-50 rounded-xl border border-purple-500/30 transition-all group overflow-hidden"
                 >
-                  {executingActions.has('crossdeposit_simulator') ? (
+                  {executingActions.has('batch_execution_planner') ? (
                     <>
                       <div className="absolute inset-0 bg-purple-500/20">
                         <div 
                           className="h-full bg-purple-500/40 transition-all duration-300"
-                          style={{ width: `${actionProgress['crossdeposit_simulator'] || 0}%` }}
+                          style={{ width: `${actionProgress['batch_execution_planner'] || 0}%` }}
                         />
                       </div>
                       <div className="relative">
                         <div className="w-5 h-5 border-2 border-purple-400 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                        <div className="text-xs text-white">{actionProgress['crossdeposit_simulator'] || 0}%</div>
+                        <div className="text-xs text-white">{actionProgress['batch_execution_planner'] || 0}%</div>
                       </div>
                     </>
                   ) : (
                     <>
                       <BarChart3 className="w-5 h-5 text-purple-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-                      <div className="text-xs text-white">Cross-Deposit Sim</div>
+                      <div className="text-xs text-white">Batch Execution</div>
                     </>
                   )}
                 </button>
@@ -819,9 +828,9 @@ const CommandCenter = () => {
                     // Run the relevant analysis based on the notification
                     const analysisActions = {
                       'critical': () => runAnalysisSimulation('volatility_analyzer'),
-                      'warning': () => runAnalysisSimulation('collateral_optimizer'),
+                      'warning': () => runAnalysisSimulation('pool_parameter_optimizer'),
                       'success': () => runAnalysisSimulation('correlation_calculator'),
-                      'info': () => runAnalysisSimulation('crossdeposit_simulator')
+                      'info': () => runAnalysisSimulation('batch_execution_planner')
                     };
                     
                     const actionHandler = analysisActions[selectedNotification.severity] || analysisActions['info'];

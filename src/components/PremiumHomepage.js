@@ -10,7 +10,7 @@ import MarkdownRenderer from './MarkdownRenderer';
 import { useLiquidGlass } from './SimpleLiquidGlass';
 
 const PremiumHomepage = () => {
-  const { prices, treasuries, vaults, mergerConfiguration, loading, error } = useData();
+  const { prices, circulationData, mergerConfiguration, loading } = useData();
   const [aiStatus, setAiStatus] = useState({ status: 'green', message: '', confidence: 0 });
   const [notifications, setNotifications] = useState([]);
   
@@ -20,7 +20,7 @@ const PremiumHomepage = () => {
   const insightsRef = useLiquidGlass({ width: 600, height: 300 });
 
   useEffect(() => {
-    if (prices.length > 0 && treasuries.length > 0) {
+    if (prices.length > 0 && circulationData) {
       // Generate merger recommendations
       const mergerAI = new MergerRecommendations();
       const analysis = mergerAI.analyzeMarketConditions();
@@ -33,7 +33,7 @@ const PremiumHomepage = () => {
       });
       
       // Generate dynamic notifications based on current data
-      const dynamicNotifications = generateNotifications(prices, treasuries, vaults);
+      const dynamicNotifications = generateNotifications(prices, circulationData);
       
       // Combine with live events
       const combinedNotifications = [
@@ -50,9 +50,9 @@ const PremiumHomepage = () => {
       
       setNotifications(combinedNotifications);
     }
-  }, [prices, treasuries, vaults]);
+  }, [prices, circulationData]);
 
-  const generateNotifications = (prices, treasuries, vaults) => {
+  const generateNotifications = (prices, circulationData) => {
     const notifications = [];
     
     // Check for high volatility in DAO tokens
@@ -70,27 +70,32 @@ const PremiumHomepage = () => {
       }
     }
 
-    // Check vault utilization
-    if (vaults && vaults.utilizationPercent > 85) {
-      notifications.push({
-        id: 2,
-        type: 'warning',
-        title: 'High Vault Utilization',
-        message: `USDC vault at ${vaults.utilizationPercent.toFixed(1)}% capacity. Borrowing costs may increase.`,
-        timestamp: new Date(),
-        confidence: 89
-      });
+    // Check for merger opportunities based on market cap
+    if (circulationData) {
+      const viableTokens = Object.values(circulationData).filter(token => token.marketCap > 10000000);
+      if (viableTokens.length < 3) {
+        notifications.push({
+          id: 2,
+          type: 'warning',
+          title: 'Limited Merger Options',
+          message: `Only ${viableTokens.length} tokens have sufficient market cap (>$10M) for viable mergers.`,
+          timestamp: new Date(),
+          confidence: 89
+        });
+      }
     }
     
-    // Check for merger opportunities
-    if (treasuries && treasuries.length >= 2) {
-      const largeUSDCHolders = treasuries.filter(t => t.stablecoins > 10);
-      if (largeUSDCHolders.length >= 2) {
+    // Check for high correlation pairs
+    if (prices.length >= 2 && circulationData) {
+      const viableTokens = Object.values(circulationData)
+        .filter(token => token.marketCap > 10000000)
+        .slice(0, 3); // Check top 3 for demo
+      if (viableTokens.length >= 2) {
         notifications.push({
           id: 3,
           type: 'opportunity',
           title: 'Merger Opportunity Detected',
-          message: `${largeUSDCHolders.length} DAOs with significant USDC holdings. Run simulation for optimal pairs.`,
+          message: `${viableTokens.length} DAOs with sufficient liquidity for mergers. Run correlation analysis for optimal pairs.`,
           timestamp: new Date(),
           confidence: 91
         });
@@ -179,11 +184,11 @@ const PremiumHomepage = () => {
             transition={{ delay: 0.6 }}
             className="mt-8 text-xs text-white/40 space-y-1"
           >
-            <div>✓ Cross-collateralization engine activated</div>
-            <div>✓ Treasury data streams connected</div>
-            <div>✓ Vault monitoring systems online</div>
+            <div>✓ One-sided JIT liquidity model initialized</div>
+            <div>✓ Token circulation data connected</div>
+            <div>✓ Merger simulation engine online</div>
             <div className="flex items-center">
-              <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse mr-2"></div>
+              <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse mr-2 ml-1"></div>
               Calibrating merger simulation algorithms...
             </div>
           </motion.div>
@@ -217,16 +222,16 @@ const PremiumHomepage = () => {
             
             <div className="max-w-4xl mx-auto">
               <p className="text-xl text-white/80 font-light leading-relaxed mb-8">
-                "Welcome to FORMULA! I analyze DAO treasuries, simulate cross-collateralization strategies, 
-                and identify optimal merger opportunities using EulerSwap's revolutionary capital efficiency model."
+                "Welcome to FORMULA! I analyze token circulation data, simulate one-sided JIT liquidity pools, 
+                and identify optimal merger opportunities using EulerSwap's asymmetric concentration parameters."
               </p>
               
               <div className="flex items-center justify-center space-x-8">
                 <div className="text-center">
                   <div className="text-3xl font-light text-white mb-2">
-                    {vaults?.totalLiquidity ? `$${(vaults.totalLiquidity / 1000000).toFixed(1)}M` : 'Loading...'}
+                    {circulationData ? Object.values(circulationData).filter(t => t.marketCap > 10000000).length : 0}
                   </div>
-                  <div className="text-white/60">Total Liquidity</div>
+                  <div className="text-white/60">Viable DAOs</div>
                 </div>
                 
                 <div className={`w-16 h-16 rounded-full bg-gradient-to-r ${getStatusGradient(aiStatus.status)} shadow-xl flex items-center justify-center`}>
@@ -299,7 +304,7 @@ const PremiumHomepage = () => {
               </div>
               <h3 className="text-2xl font-light text-white mb-4">All Systems Optimal</h3>
               <p className="text-white/60 text-lg font-light max-w-2xl mx-auto">
-                FORMULA is continuously analyzing DAO treasuries and vault conditions. All merger parameters are within optimal ranges. 
+                FORMULA is continuously analyzing token circulation and market conditions. All merger parameters are within optimal ranges. 
                 I'll notify you immediately of any arbitrage opportunities or risk alerts.
               </p>
             </div>
@@ -308,82 +313,85 @@ const PremiumHomepage = () => {
 
         {/* Compact Metrics Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-          {/* Vault Utilization Card */}
+          {/* Merger Opportunities Card */}
           <div className="group relative">
             <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/20 to-purple-500/20 rounded-2xl blur opacity-75 group-hover:opacity-100 transition-opacity"></div>
             <div className="relative bg-black/60 backdrop-blur-xl rounded-2xl p-8 border border-white/10 hover:border-yellow-500/30 transition-all">
               <div className="flex items-center justify-between mb-6">
                 <Database className="w-6 h-6 text-yellow-500" />
-                <div className="text-sm text-white/60 font-mono">VAULT</div>
+                <div className="text-sm text-white/60 font-mono">MERGERS</div>
               </div>
               <div className="space-y-2">
                 <AnimatedNumber 
-                  value={vaults?.utilizationPercent || 78.5}
-                  suffix="%"
-                  decimals={1}
+                  value={circulationData ? Math.floor(
+                    Object.values(circulationData).filter(t => t.marketCap > 10000000).length * 
+                    (Object.values(circulationData).filter(t => t.marketCap > 10000000).length - 1) / 2
+                  ) : 0}
+                  suffix=" pairs"
+                  decimals={0}
                   fontSize="text-3xl"
                   color="text-white"
                 />
-                <p className="text-white/60">Vault Utilization</p>
+                <p className="text-white/60">Possible Mergers</p>
                 <div className="flex items-center space-x-2">
-                  <span className="text-sm text-white/50">APY:</span>
-                  <span className="text-sm text-green-400">
-                    {vaults?.currentAPY || '5.2'}%
-                  </span>
+                  <span className="text-sm text-white/50">Min MC:</span>
+                  <span className="text-sm text-green-400">$10M</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Treasury Value Card */}
+          {/* Total Market Cap Card */}
           <div className="group relative">
             <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 rounded-2xl blur opacity-75 group-hover:opacity-100 transition-opacity"></div>
             <div className="relative bg-black/60 backdrop-blur-xl rounded-2xl p-8 border border-white/10 hover:border-blue-500/30 transition-all">
               <div className="flex items-center justify-between mb-6">
                 <DollarSign className="w-6 h-6 text-blue-500" />
-                <div className="text-sm text-white/60 font-mono">TREASURY</div>
+                <div className="text-sm text-white/60 font-mono">MARKET CAP</div>
               </div>
               <div className="space-y-2">
                 <AnimatedNumber 
-                  value={treasuries?.reduce((sum, t) => sum + (t.stablecoins || 0), 0) || 0}
+                  value={circulationData ? 
+                    Object.values(circulationData).reduce((sum, token) => sum + (token.marketCap || 0), 0) / 1e9 : 0
+                  }
                   prefix="$"
-                  suffix="M"
+                  suffix="B"
                   decimals={1}
                   fontSize="text-3xl"
                   color="text-white"
                 />
-                <p className="text-white/60">Total USDC</p>
+                <p className="text-white/60">Total Value</p>
                 <div className="flex items-center space-x-2">
-                  <span className="text-sm text-white/50">DAOs:</span>
+                  <span className="text-sm text-white/50">Tokens:</span>
                   <span className="text-sm text-blue-400">
-                    {treasuries?.length || 0}
+                    {circulationData ? Object.keys(circulationData).length : 0}
                   </span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Capital Efficiency Card */}
+          {/* Average Dilution Card */}
           <div className="group relative">
             <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 rounded-2xl blur opacity-75 group-hover:opacity-100 transition-opacity"></div>
             <div className="relative bg-black/60 backdrop-blur-xl rounded-2xl p-8 border border-white/10 hover:border-emerald-500/30 transition-all">
               <div className="flex items-center justify-between mb-6">
                 <TrendingUp className="w-6 h-6 text-emerald-500" />
-                <div className="text-sm text-white/60 font-mono">EFFICIENCY</div>
+                <div className="text-sm text-white/60 font-mono">DILUTION</div>
               </div>
               <div className="space-y-2">
                 <AnimatedNumber 
-                  value={mergerConfiguration?.capitalEfficiency || 5.7}
-                  suffix="x"
+                  value={mergerConfiguration?.dilutionPercentage || 8.5}
+                  suffix="%"
                   decimals={1}
                   fontSize="text-3xl"
                   color="text-white"
                 />
-                <p className="text-white/60">Capital Efficiency</p>
+                <p className="text-white/60">Average Dilution</p>
                 <div className="flex items-center space-x-2">
-                  <span className="text-sm text-white/50">vs AMM:</span>
+                  <span className="text-sm text-white/50">Target:</span>
                   <span className="text-sm text-emerald-400">
-                    +{((mergerConfiguration?.capitalEfficiency || 5.7) - 1) * 100}%
+                    &lt;15%
                   </span>
                 </div>
               </div>
@@ -478,21 +486,21 @@ const PremiumHomepage = () => {
             
             <p className="text-2xl text-white/80 font-light leading-relaxed">
               "Ready to simulate DAO mergers? Click the chat icon in the bottom right to begin our conversation. 
-              I can help with treasury analysis, merger feasibility, cross-collateralization strategies, and optimal swap parameters."
+              I can help with circulation analysis, merger feasibility, one-sided JIT strategies, and optimal swap parameters."
             </p>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
               <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
-                <h4 className="text-white font-medium mb-3">Treasury Analysis</h4>
+                <h4 className="text-white font-medium mb-3">Circulation Analysis</h4>
                 <p className="text-white/70 text-sm">
-                  "Ask me about DAO treasury compositions, USDC holdings, or token correlations"
+                  "Ask me about token circulation, market caps, or correlation analysis"
                 </p>
               </div>
               
               <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
                 <h4 className="text-white font-medium mb-3">Merger Feasibility</h4>
                 <p className="text-white/70 text-sm">
-                  "Request merger simulations, cross-collateralization analysis, or liquidity projections"
+                  "Request merger simulations, one-sided JIT analysis, or dilution projections"
                 </p>
               </div>
               

@@ -1,3 +1,4 @@
+/* global BigInt */
 // API service for DAO merger simulator
 
 // Import token analytics utilities
@@ -5,14 +6,17 @@ import {
   calculateVolatility, 
   calculateCorrelation, 
   categorizeVolatility,
-  getUSDCCollateralLTV,
   calculatePriceStats,
   scaleForEulerSwap,
   calculateSafeReserves,
   calculateVaultCapacityRisk,
-  calculateLiquidationRisk,
-  getEulerSwapConcentration
+  getAsymmetricConcentrations,
+  calculateMergerFeasibility,
+  calculateVaultFundingNeeds
 } from '../utils/tokenAnalytics.js';
+import { decodeAmountCap } from '../utils/eulerUtils';
+
+// API functions are exported inline below
 
 export const fetchPrices = async () => {
   try {
@@ -42,9 +46,9 @@ export const fetchPrices = async () => {
   }
 };
 
-export const fetchTreasuries = async () => {
+export const fetchTokenCirculation = async (token) => {
   try {
-    const response = await fetch('http://localhost:3001/api/treasuries', {
+    const response = await fetch(`http://localhost:3001/api/token-circulation/${token}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -56,44 +60,16 @@ export const fetchTreasuries = async () => {
     }
     
     const result = await response.json();
-    console.log('Treasuries response from local backend:', result);
+    console.log(`Token circulation response for ${token}:`, result);
     
     if (result.success) {
-      return result.data; // Array of DAO treasury data
+      return result.data; // Token circulation data
     } else {
-      console.error('Failed to fetch treasuries:', result.error);
-      return [];
-    }
-  } catch (error) {
-    console.error('Error fetching treasuries from local backend:', error);
-    return [];
-  }
-};
-
-export const fetchVaults = async () => {
-  try {
-    const response = await fetch('http://localhost:3001/api/euler-vaults', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const result = await response.json();
-    console.log('Euler vaults response from local backend:', result);
-    
-    if (result.success) {
-      return result.data; // Euler Prime USDC vault data
-    } else {
-      console.error('Failed to fetch vaults:', result.error);
+      console.error(`Failed to fetch circulation for ${token}:`, result.error);
       return null;
     }
   } catch (error) {
-    console.error('Error fetching vaults from local backend:', error);
+    console.error(`Error fetching circulation for ${token}:`, error);
     return null;
   }
 };
@@ -131,21 +107,21 @@ export const analyzeMergerContext = async (mergerContext) => {
 }
 
 // Calculate comprehensive merger configuration for two DAOs
-export const calculateMergerConfiguration = async (daoA, daoB, existingData = null) => {
+export const calculateMergerConfiguration = async (daoA, daoB, existingData = null, executionStrategy = {}) => {
   try {
     // Use existing data if provided, otherwise fetch
-    let pricesData, treasuriesData, vaultData;
+    let pricesData, circulationDataA, circulationDataB;
     
-    if (existingData && existingData.prices && existingData.treasuries && existingData.vaults) {
+    if (existingData && existingData.prices && existingData.circulationA && existingData.circulationB) {
       pricesData = existingData.prices;
-      treasuriesData = existingData.treasuries;
-      vaultData = existingData.vaults;
+      circulationDataA = existingData.circulationA;
+      circulationDataB = existingData.circulationB;
     } else {
-      // Only fetch if data not provided
-      [pricesData, treasuriesData, vaultData] = await Promise.all([
+      // Fetch price and circulation data
+      [pricesData, circulationDataA, circulationDataB] = await Promise.all([
         fetchPrices(),
-        fetchTreasuries(),
-        fetchVaults()
+        fetchTokenCirculation(daoA.symbol),
+        fetchTokenCirculation(daoB.symbol)
       ]);
     }
     
@@ -157,159 +133,208 @@ export const calculateMergerConfiguration = async (daoA, daoB, existingData = nu
       throw new Error('Price data not found for one or both DAOs');
     }
     
-    // Find treasury data and add aggregated fields
-    const treasuryAData = treasuriesData.find(t => t.symbol === daoA.symbol);
-    const treasuryBData = treasuriesData.find(t => t.symbol === daoB.symbol);
+    // Ensure we have circulation data
+    if (!circulationDataA || !circulationDataB) {
+      throw new Error('Circulation data not found for one or both DAOs');
+    }
     
-    // Aggregate treasury data for each DAO across all chains
-    const treasuryA = treasuryAData ? {
-      ...treasuryAData,
-      totalValueUSD: treasuryAData.treasuries.reduce((sum, t) => sum + (t.tvl || 0), 0),
-      stablecoinBalance: treasuryAData.treasuries.reduce((sum, t) => sum + (t.stablecoins || 0), 0),
-      nativeTokenBalance: treasuryAData.treasuries.reduce((sum, t) => sum + (t.ownTokens || 0), 0),
-      nativeTokenPrice: priceA?.currentPrice || 0
-    } : null;
+    // Validate price data has required fields
+    if (!priceA.currentPrice || !priceB.currentPrice) {
+      throw new Error('Current price data missing for one or both DAOs');
+    }
     
-    const treasuryB = treasuryBData ? {
-      ...treasuryBData,
-      totalValueUSD: treasuryBData.treasuries.reduce((sum, t) => sum + (t.tvl || 0), 0),
-      stablecoinBalance: treasuryBData.treasuries.reduce((sum, t) => sum + (t.stablecoins || 0), 0),
-      nativeTokenBalance: treasuryBData.treasuries.reduce((sum, t) => sum + (t.ownTokens || 0), 0),
-      nativeTokenPrice: priceB?.currentPrice || 0
-    } : null;
+    if (!priceA.priceHistory || !priceB.priceHistory || 
+        priceA.priceHistory.length === 0 || priceB.priceHistory.length === 0) {
+      throw new Error('Price history missing for volatility calculation');
+    }
     
-    // 1. Volatility Analysis
-    const volA = calculateVolatility(priceA.priceHistory.map(p => ({ value: p.price })));
-    const volB = calculateVolatility(priceB.priceHistory.map(p => ({ value: p.price })));
-    const correlation = calculateCorrelation(
-      priceA.priceHistory.map(p => ({ value: p.price })),
-      priceB.priceHistory.map(p => ({ value: p.price }))
-    );
+    // Calculate key merger metrics with validation
+    const circulatingSupplyA = circulationDataA.circulatingSupply || 0;
+    const circulatingSupplyB = circulationDataB.circulatingSupply || 0;
+    const currentPriceA = priceA.currentPrice;
+    const currentPriceB = priceB.currentPrice;
+    
+    // Validate we have positive values
+    if (circulatingSupplyA <= 0 || circulatingSupplyB <= 0) {
+      throw new Error('Invalid circulating supply values');
+    }
+    
+    if (currentPriceA <= 0 || currentPriceB <= 0) {
+      throw new Error('Invalid price values');
+    }
+    
+    // Calculate required mint and dilution
+    const requiredMint = circulatingSupplyA && currentPriceB ? 
+      (circulatingSupplyA * currentPriceA) / currentPriceB : 0;
+    const dilutionPercentage = circulatingSupplyB ? 
+      (requiredMint / (circulatingSupplyB + requiredMint)) * 100 : 0;
+    const marketCapRatio = circulatingSupplyA && circulatingSupplyB && currentPriceA && currentPriceB ? 
+      (circulatingSupplyA * currentPriceA) / (circulatingSupplyB * currentPriceB) : 0;
+    
+    // 1. Volatility Analysis - with validation for price history
+    const priceHistoryA = priceA.priceHistory.map(p => ({ value: p.price || 0 })).filter(p => p.value > 0);
+    const priceHistoryB = priceB.priceHistory.map(p => ({ value: p.price || 0 })).filter(p => p.value > 0);
+    
+    if (priceHistoryA.length < 2 || priceHistoryB.length < 2) {
+      throw new Error('Insufficient price history for volatility calculation');
+    }
+    
+    const volA = calculateVolatility(priceHistoryA);
+    const volB = calculateVolatility(priceHistoryB);
+    const correlation = calculateCorrelation(priceHistoryA, priceHistoryB);
     
     const volCategoryA = categorizeVolatility(volA);
     const volCategoryB = categorizeVolatility(volB);
     
     // 2. Merger Type Determination
-    const mergerType = determineMergerType(treasuryA, treasuryB, volA, volB, correlation);
+    const mergerType = determineMergerType(marketCapRatio, correlation);
     
-    // 3. Swap Size Calculation
-    const swapSizes = calculateSwapSizes(treasuryA, treasuryB, mergerType, volCategoryA, volCategoryB);
-    
-    // 4. Collateral Requirements (USDC-based)
-    const usdcLTV = getUSDCCollateralLTV();
-    
-    const collateralRequirements = {
-      daoA: {
-        usdcRequired: swapSizes.tokenBRequired / usdcLTV.recommended,
-        availableUsdc: treasuryA?.stablecoinBalance || 0,
-        borrowingCapacity: (treasuryA?.stablecoinBalance || 0) * usdcLTV.recommended
-      },
-      daoB: {
-        usdcRequired: swapSizes.tokenARequired / usdcLTV.recommended,
-        availableUsdc: treasuryB?.stablecoinBalance || 0,
-        borrowingCapacity: (treasuryB?.stablecoinBalance || 0) * usdcLTV.recommended
-      }
-    };
-    
-    // 5. Vault Configuration Parameters with EulerSwap constraints
-    const vaultCapacity = Math.min(
-      parseFloat(vaultData?.cash || vaultData?.totalAssets - vaultData?.totalBorrows || 0),
-      parseFloat(vaultData?.borrowCapRemaining || Infinity),
-      parseFloat(vaultData?.totalAssets || 0) * 0.1 // Conservative daily limit
+    // 3. Calculate asymmetric concentration parameters
+    const { concentrationX, concentrationY } = getAsymmetricConcentrations(
+      marketCapRatio, 
+      dilutionPercentage, 
+      volA, 
+      volB
     );
     
-    const vaultConfig = {
-      usdc: {
-        ...vaultData,
-        requiredLiquidity: swapSizes.totalValueUSD,
-        utilizationImpact: calculateUtilizationImpact(vaultData, swapSizes.totalValueUSD),
-        dailyCapacity: vaultCapacity,
-        capacityRisk: calculateVaultCapacityRisk(vaultData, swapSizes.totalValueUSD)
+    // 4. Interest Rate Model Configuration
+    const interestRateModels = {
+      phasedOutVault: {
+        type: 'Zero Rate Model',
+        address: '0x0000000000000000000000000000000000000000', // Zero address for 0% rate
+        rationale: 'Phased-out tokens are only deposited, never borrowed'
       },
-      crossCollateralization: {
-        enabled: true,
-        ltv: usdcLTV.recommended,
-        liquidationLTV: usdcLTV.liquidationLTV,
-        usdcCollateralLTV: 0.9e4, // 90% LTV for USDC backing (in basis points)
-        initialSeedRatio: 0.15, // 15% initial deposits
-        crossDepositMultiplier: 2.0, // Account for cross-vault deposits
-        maxLeverageRatio: parseFloat(vaultData?.utilization || 0) < 0.8 ? 10 : 5
+      survivingVault: {
+        type: 'Dynamic Utilization Model',
+        recommendedModel: 'LinearKink IRM',
+        parameters: {
+          baseRate: 0, // 0% at 0% utilization
+          slope1: 0.05e27, // 5% APY below kink
+          slope2: 1.0e27, // 100% APY above kink  
+          kink: 0.8e18 // 80% utilization kink point
+        },
+        rationale: 'Incentivizes liquidity provision while managing JIT borrowing costs'
       }
     };
     
-    // 6. EulerSwap AMM Parameters with proper constraints
+    // 5. Vault Deployment Configuration
+    const fundingRequired = calculateVaultFundingNeeds(requiredMint, 1.2); // Use utility function for 20% buffer
+    const expectedUtilization = requiredMint / fundingRequired; // ~83%
+    
+    const vaultDeployment = {
+      phasedOutVault: {
+        token: daoA.symbol,
+        interestRateModel: interestRateModels.phasedOutVault,
+        interestFee: 0, // No fees on 0% interest
+        supplyCap: decodeAmountCap(0xFFFF), // Decode to human-readable value
+        borrowCap: decodeAmountCap(0), // No borrowing allowed
+        fundingRequired: 0 // No pre-funding needed
+      },
+      survivingVault: {
+        token: daoB.symbol,
+        interestRateModel: interestRateModels.survivingVault,
+        interestFee: 1000, // 10% of interest as protocol fee
+        supplyCap: decodeAmountCap(0xFFFF), // Decode to human-readable value
+        borrowCap: decodeAmountCap(0xFFFF), // Decode to human-readable value - allows JIT borrowing
+        fundingRequired,
+        expectedUtilization,
+        expectedBorrowRate: `${(expectedUtilization * 0.05 * 100).toFixed(1)}% APY` // Based on IRM curve
+      },
+      fundingStrategy: {
+        totalRequired: fundingRequired,
+        source: `${daoB.symbol} DAO Treasury`,
+        bufferRatio: 1.2,
+        rationale: '20% buffer keeps utilization below 80% kink for optimal rates'
+      }
+    };
+    
+    // 6. EulerSwap AMM Parameters for one-sided pool
     const { priceX, priceY } = scaleForEulerSwap(
-      priceA.currentPrice, 
-      priceB.currentPrice,
+      currentPriceA, 
+      currentPriceB,
       priceA.decimals || 18,
       priceB.decimals || 18
     );
     
-    // Use enhanced concentration calculation
-    const concentrationX = getEulerSwapConcentration(correlation, volA, volB);
-    const concentrationY = concentrationX; // Symmetric for initial deployment
-    
-    // Calculate reserves based on vault capacity and cross-deposits
-    const equilibriumReserve0 = calculateSafeReserves(Math.min(
-      swapSizes.tokenAAmount * 3, // Original multiplier
-      vaultCapacity * 0.5, // Don't exceed half of available liquidity
-      (treasuryA?.stablecoinBalance || 0) * usdcLTV.recommended * priceA.currentPrice // USDC collateral backing
-    ));
-    
-    const equilibriumReserve1 = calculateSafeReserves(Math.min(
-      swapSizes.tokenBAmount * 3,
-      vaultCapacity * 0.5,
-      (treasuryB?.stablecoinBalance || 0) * usdcLTV.recommended * priceB.currentPrice
-    ));
+    // One-sided pool configuration
+    // Use calculateSafeReserves to ensure reserves are within safe bounds
+    const totalSwapValue = requiredMint * currentPriceB;
+    const safeReserve1 = calculateSafeReserves(totalSwapValue, 1.5); // 1.5x multiplier for liquidity
     
     const ammParameters = {
+      vault0: `${daoA.symbol} Vault`, // Phased-out token vault
+      vault1: `${daoB.symbol} Vault`, // Surviving token vault
+      equilibriumReserve0: 1, // Minimal amount to avoid division by zero
+      equilibriumReserve1: safeReserve1, // Use safe reserves
+      currReserve0: 1, // Start with minimal phased-out tokens
+      currReserve1: safeReserve1, // Start with safe liquidity
       priceX: Math.min(priceX, 1e25), // Ensure within EulerSwap bounds
       priceY: Math.min(priceY, 1e25),
-      concentrationX: Math.min(concentrationX, 1e18), // Cap at maximum allowed
+      concentrationX: Math.min(concentrationX, 1e18), // Dynamic based on volatility
       concentrationY: Math.min(concentrationY, 1e18),
-      equilibriumReserve0,
-      equilibriumReserve1,
       fee: 0.003e18, // 0.3% fee in 1e18 format
       borrowingEnabled: true,
-      crossDepositsEnabled: true
+      description: 'One-sided pool where phased-out tokens can only be swapped for surviving tokens'
     };
     
     // 7. Execution Timeline
-    const timeline = estimateExecutionTimeline(swapSizes, volCategoryA, volCategoryB);
+    const totalValueSwapped = requiredMint * currentPriceB;
+    const expectedDailyVolume = totalValueSwapped * 0.1; // Assume 10% can be swapped daily
     
-    // 8. Enhanced Risk Assessment with EulerSwap-specific risks
-    const liquidationRisk = calculateLiquidationRisk(
-      Math.max(volA, volB),
-      usdcLTV.liquidationLTV,
-      Math.max(collateralRequirements.daoA.availableUsdc, collateralRequirements.daoB.availableUsdc),
-      swapSizes.totalValueUSD
+    // Calculate vault capacity risk
+    const vaultCapacityRisk = calculateVaultCapacityRisk(requiredMint, expectedDailyVolume);
+    
+    const timeline = {
+      estimatedDays: Math.ceil(10), // Conservative 10 days
+      phases: [
+        { phase: 1, description: 'Deploy vaults and fund surviving token vault', duration: '1 day' },
+        { phase: 2, description: 'Deploy EulerSwap pool with one-sided parameters', duration: '1 hour' },
+        { phase: 3, description: 'Execute merger swaps', duration: '7-10 days' }
+      ],
+      total: 10,
+      unit: 'days'
+    };
+    
+    // 8. Risk Assessment for one-sided JIT model
+    // Calculate exact price impact using EulerSwap curve mathematics
+    
+    // Parse execution strategy parameters
+    const executionParams = {
+      numberOfBatches: executionStrategy.numberOfBatches || 10,
+      batchDistribution: executionStrategy.batchDistribution || null
+    };
+    
+    const priceImpactResult = calculateMergerPriceImpact(
+      circulatingSupplyA,  // totalSwapAmount - amount of phased-out token to swap
+      circulatingSupplyA,  // circulatingSupply
+      ammParameters,       // ammParameters
+      executionParams      // execution parameters
     );
     
-    const risks = assessMergerRisks({
+    const risks = assessOneSidedMergerRisks({
+      dilutionPercentage,
+      marketCapRatio,
       volatilities: { A: volA, B: volB },
       correlation,
-      swapSizes,
-      collateralRequirements,
-      vaultUtilization: vaultConfig.usdc.utilizationImpact,
-      liquidationRisk,
-      vaultCapacityRisk: vaultConfig.usdc.capacityRisk,
-      borrowingCostRisk: estimateBorrowingCosts(swapSizes.totalValueUSD, vaultData),
-      slippageRisk: estimateSlippage(concentrationX, concentrationY, swapSizes)
+      concentrations: { X: concentrationX, Y: concentrationY },
+      fundingRequired,
+      priceImpact: priceImpactResult.totalPriceImpact,
+      vaultCapacityRisk
     });
     
     // 9. Calculate overall feasibility score
-    const feasibilityScore = calculateFeasibilityScore({
-      collateralAdequacy: Math.min(
-        collateralRequirements.daoA.availableUsdc / collateralRequirements.daoA.usdcRequired,
-        collateralRequirements.daoB.availableUsdc / collateralRequirements.daoB.usdcRequired
-      ),
-      volatilityCompatibility: 1 - Math.abs(volA - volB) / Math.max(volA, volB),
-      correlationFactor: Math.abs(correlation),
-      vaultCapacity: 1 - vaultConfig.usdc.utilizationImpact.newUtilization,
-      treasuryAlignment: calculateTreasuryAlignment(treasuryA, treasuryB)
-    });
+    const feasibilityScore = calculateMergerFeasibility(
+      marketCapRatio,
+      dilutionPercentage,
+      correlation
+    ) / 100; // Convert to 0-1 scale
     
     return {
+      // Expose key metrics at top level for easier access
+      dilutionPercentage,
+      requiredMint,
+      totalPriceImpact: priceImpactResult.totalPriceImpact,
+      
       feasibility: {
         score: feasibilityScore,
         viable: feasibilityScore > 0.6,
@@ -322,30 +347,63 @@ export const calculateMergerConfiguration = async (daoA, daoB, existingData = nu
         correlation
       },
       swapConfiguration: {
-        sizes: swapSizes,
-        collateral: collateralRequirements,
-        ammParameters
+        ammParameters,
+        phasedOutToken: daoA.symbol,
+        survivingToken: daoB.symbol,
+        totalSwapAmount: requiredMint,
+        sizes: {
+          totalValueUSD: totalValueSwapped,
+          tokenAAmount: 0, // One-sided model: no A tokens needed
+          tokenBAmount: requiredMint,
+          percentageA: 0, // Not applicable in one-sided model
+          percentageB: (dilutionPercentage || 0).toFixed(2) // Dilution percentage
+        }
       },
-      vaultConfiguration: vaultConfig,
+      vaultConfiguration: vaultDeployment,
       timeline,
       risks,
-      capitalEfficiency: {
-        leverageMultiple: vaultConfig.crossCollateralization.maxLeverageRatio,
-        liquidityEfficiency: '5-7x vs traditional AMMs',
-        crossDepositBenefit: 'Each swap increases available liquidity',
-        initialCapitalRequired: swapSizes.totalValueUSD * vaultConfig.crossCollateralization.initialSeedRatio
+      mergerMetrics: {
+        requiredMint,
+        dilutionPercentage,
+        marketCapRatio,
+        totalValueUSD: totalValueSwapped,
+        priceImpact: {
+          total: priceImpactResult.totalPriceImpact,
+          average: priceImpactResult.totalSlippage / 10, // Average across batches
+          breakdown: priceImpactResult.impacts
+        }
       },
-      deploymentConfig: {
-        vault0: `0x${treasuryA?.symbol}_VAULT`, // Placeholder - would need actual vault addresses
-        vault1: `0x${treasuryB?.symbol}_VAULT`,
-        eulerAccount: 'SHARED_EULER_ACCOUNT', // Would need actual account
-        initialState: {
-          currReserve0: equilibriumReserve0 * vaultConfig.crossCollateralization.initialSeedRatio,
-          currReserve1: equilibriumReserve1 * vaultConfig.crossCollateralization.initialSeedRatio
+      deploymentSteps: [
+        {
+          step: 1,
+          action: 'Deploy Interest Rate Models',
+          details: {
+            phasedOutIRM: 'Use zero address (0x0) for 0% rate',
+            survivingIRM: 'Deploy LinearKink IRM with kink at 80% utilization'
+          }
         },
-        curveValid: verifyCurveConstraints(ammParameters),
-        paramValidation: validateEulerSwapParams(ammParameters)
-      }
+        {
+          step: 2,
+          action: `Deploy ${daoA.symbol} vault (phased-out)`,
+          config: vaultDeployment.phasedOutVault
+        },
+        {
+          step: 3,
+          action: `Deploy ${daoB.symbol} vault (surviving)`,
+          config: vaultDeployment.survivingVault
+        },
+        {
+          step: 4,
+          action: `Fund ${daoB.symbol} vault`,
+          amount: fundingRequired,
+          source: vaultDeployment.fundingStrategy.source
+        },
+        {
+          step: 5,
+          action: 'Deploy EulerSwap pool',
+          poolParams: ammParameters
+        }
+      ]
     };
     
   } catch (error) {
@@ -356,191 +414,90 @@ export const calculateMergerConfiguration = async (daoA, daoB, existingData = nu
 
 // Helper functions for merger configuration
 
-const determineMergerType = (treasuryA, treasuryB, volA, volB, correlation) => {
-  const sizeRatio = (treasuryA?.totalValueUSD || 0) / (treasuryB?.totalValueUSD || 0);
-  
-  if (sizeRatio > 3 || sizeRatio < 0.33) {
+const determineMergerType = (marketCapRatio, correlation) => {
+  if (marketCapRatio > 3 || marketCapRatio < 0.33) {
     return 'acquisition'; // One DAO significantly larger
   } else if (Math.abs(correlation) > 0.7) {
     return 'strategic_alignment'; // High correlation suggests similar market exposure
-  } else if (Math.abs(volA - volB) < 0.1) {
-    return 'equal_merger'; // Similar volatility profiles
+  } else if (marketCapRatio > 0.5 && marketCapRatio < 2) {
+    return 'equal_merger'; // Similar market caps
   } else {
     return 'diversification'; // Different profiles for risk diversification
   }
 };
 
-const calculateSwapSizes = (treasuryA, treasuryB, mergerType, volCategoryA, volCategoryB) => {
-  const baseSwapPercentage = {
-    acquisition: 0.25,
-    strategic_alignment: 0.4,
-    equal_merger: 0.35,
-    diversification: 0.3
-  }[mergerType];
-  
-  // Adjust for volatility
-  const volAdjustment = Math.min(volCategoryA.swapSizeRecommendation, volCategoryB.swapSizeRecommendation) === 'small' ? 0.7 : 1;
-  const adjustedPercentage = baseSwapPercentage * volAdjustment;
-  
-  const tokenAAmount = (treasuryA?.nativeTokenBalance || 0) * adjustedPercentage;
-  const tokenBAmount = (treasuryB?.nativeTokenBalance || 0) * adjustedPercentage;
-  
-  return {
-    tokenAAmount,
-    tokenBAmount,
-    tokenARequired: tokenBAmount,
-    tokenBRequired: tokenAAmount,
-    percentageA: adjustedPercentage * 100,
-    percentageB: adjustedPercentage * 100,
-    totalValueUSD: (tokenAAmount * (treasuryA?.nativeTokenPrice || 0)) + 
-                   (tokenBAmount * (treasuryB?.nativeTokenPrice || 0))
-  };
-};
 
-const calculateUtilizationImpact = (vaultData, requiredLiquidity) => {
-  if (!vaultData) return { newUtilization: 0, impactSeverity: 'unknown' };
-  
-  const currentBorrows = parseFloat(vaultData.totalBorrows || 0);
-  const totalAssets = parseFloat(vaultData.totalAssets || 0);
-  const newBorrows = currentBorrows + requiredLiquidity;
-  const newUtilization = totalAssets > 0 ? newBorrows / totalAssets : 0;
-  
-  return {
-    currentUtilization: vaultData.utilization,
-    newUtilization,
-    impactSeverity: newUtilization > 0.9 ? 'high' : newUtilization > 0.7 ? 'medium' : 'low'
-  };
-};
 
-const estimateExecutionTimeline = (swapSizes, volCategoryA, volCategoryB) => {
-  const baseTime = 24; // hours
-  const sizeMultiplier = swapSizes.totalValueUSD > 100000000 ? 2 : 1; // >$100M takes longer
-  const volMultiplier = (volCategoryA.level === 'high' || volCategoryB.level === 'high') ? 1.5 : 1;
-  
-  return {
-    preparation: 4 * sizeMultiplier,
-    execution: baseTime * sizeMultiplier * volMultiplier,
-    settlement: 2,
-    total: (4 * sizeMultiplier) + (baseTime * sizeMultiplier * volMultiplier) + 2,
-    unit: 'hours'
-  };
-};
-
-const assessMergerRisks = (params) => {
+const assessOneSidedMergerRisks = (factors) => {
   const risks = [];
   
+  // Dilution risk
+  if (factors.dilutionPercentage > 50) {
+    risks.push({
+      type: 'dilution',
+      severity: 'high',
+      description: `Extreme dilution of ${factors.dilutionPercentage.toFixed(1)}% may face governance resistance`,
+      mitigation: 'Consider phased approach or reduced merger scope'
+    });
+  } else if (factors.dilutionPercentage > 30) {
+    risks.push({
+      type: 'dilution',
+      severity: 'medium',
+      description: `Significant dilution of ${factors.dilutionPercentage.toFixed(1)}%`,
+      mitigation: 'Clear communication of merger benefits required'
+    });
+  }
+  
+  // Market cap compatibility
+  if (factors.marketCapRatio > 10 || factors.marketCapRatio < 0.1) {
+    risks.push({
+      type: 'size_mismatch',
+      severity: 'high',
+      description: 'Extreme size difference between DAOs',
+      mitigation: 'Consider alternative merger structures'
+    });
+  }
+  
+  // Price impact risk based on concentration
+  if (factors.priceImpact > 10) {
+    risks.push({
+      type: 'price_impact',
+      severity: 'high',
+      description: `Price impact of ${factors.priceImpact.toFixed(1)}% is very high`,
+      mitigation: 'Increase number of batches or reduce concentration parameters'
+    });
+  } else if (factors.priceImpact > 5) {
+    risks.push({
+      type: 'price_impact',
+      severity: 'medium',
+      description: `Price impact of ${factors.priceImpact.toFixed(1)}% may affect execution`,
+      mitigation: 'Execute swaps gradually over multiple days'
+    });
+  }
+  
+  // Funding risk
+  risks.push({
+    type: 'funding',
+    severity: 'medium',
+    description: `DAO must fund ${(factors.fundingRequired / 1e6).toFixed(1)}M tokens upfront`,
+    mitigation: 'Ensure DAO has sufficient liquid tokens for minting'
+  });
+  
   // Volatility risk
-  if (params.volatilities.A > 0.5 || params.volatilities.B > 0.5) {
+  if (factors.volatilities.A > 0.5 || factors.volatilities.B > 0.5) {
     risks.push({
       type: 'volatility',
-      severity: 'high',
-      description: 'High token volatility may impact swap execution',
-      mitigation: 'Execute swaps in smaller batches over time'
-    });
-  }
-  
-  // Correlation risk
-  if (Math.abs(params.correlation) < 0.3) {
-    risks.push({
-      type: 'correlation',
       severity: 'medium',
-      description: 'Low correlation may lead to divergent price movements',
-      mitigation: 'Use wider liquidity concentration parameters'
-    });
-  }
-  
-  // Collateral risk
-  if (params.collateralRequirements.daoA.availableUsdc < params.collateralRequirements.daoA.usdcRequired ||
-      params.collateralRequirements.daoB.availableUsdc < params.collateralRequirements.daoB.usdcRequired) {
-    risks.push({
-      type: 'collateral',
-      severity: 'high',
-      description: 'Insufficient USDC collateral for full swap',
-      mitigation: 'Reduce swap size or acquire additional USDC'
-    });
-  }
-  
-  // Vault utilization risk
-  if (params.vaultUtilization.impactSeverity === 'high') {
-    risks.push({
-      type: 'liquidity',
-      severity: 'medium',
-      description: 'High vault utilization may increase borrowing costs',
-      mitigation: 'Monitor rates and execute during low utilization periods'
-    });
-  }
-  
-  // Liquidation risk
-  if (params.liquidationRisk && params.liquidationRisk.riskScore === 'high') {
-    risks.push({
-      type: 'liquidation',
-      severity: 'high',
-      description: `Liquidation possible with ${(params.liquidationRisk.liquidationPriceMove * 100).toFixed(1)}% price movement`,
-      mitigation: `Maintain LTV below ${(params.liquidationRisk.recommendedMaxLTV * 100).toFixed(0)}%`
-    });
-  }
-  
-  // Vault capacity risk
-  if (params.vaultCapacityRisk && params.vaultCapacityRisk.capacityRisk === 'high') {
-    risks.push({
-      type: 'capacity',
-      severity: 'high',
-      description: 'Swap size exceeds recommended vault capacity',
-      mitigation: `Reduce to ${params.vaultCapacityRisk.recommendedMaxSwap.toFixed(0)} or execute in batches`
-    });
-  }
-  
-  // Borrowing cost risk
-  if (params.borrowingCostRisk && params.borrowingCostRisk.severity === 'high') {
-    risks.push({
-      type: 'borrowing_cost',
-      severity: params.borrowingCostRisk.severity,
-      description: `High borrowing costs: ${params.borrowingCostRisk.estimatedAPY}% APY`,
-      mitigation: 'Consider smaller position or wait for lower utilization'
-    });
-  }
-  
-  // Slippage risk
-  if (params.slippageRisk && params.slippageRisk.severity === 'high') {
-    risks.push({
-      type: 'slippage',
-      severity: 'medium',
-      description: `Expected slippage: ${params.slippageRisk.expectedSlippage}%`,
-      mitigation: 'Use tighter concentration parameters or smaller swap sizes'
+      description: 'High token volatility may affect merger execution',
+      mitigation: 'Use lower concentration parameters for flexibility'
     });
   }
   
   return risks;
 };
 
-const calculateTreasuryAlignment = (treasuryA, treasuryB) => {
-  if (!treasuryA || !treasuryB) return 0;
-  
-  // Compare treasury compositions
-  const stablecoinRatioA = (treasuryA.stablecoinBalance || 0) / (treasuryA.totalValueUSD || 1);
-  const stablecoinRatioB = (treasuryB.stablecoinBalance || 0) / (treasuryB.totalValueUSD || 1);
-  
-  // Similar stablecoin ratios indicate aligned treasury strategies
-  return 1 - Math.abs(stablecoinRatioA - stablecoinRatioB);
-};
 
-const calculateFeasibilityScore = (factors) => {
-  // Weighted average of factors
-  const weights = {
-    collateralAdequacy: 0.35,
-    volatilityCompatibility: 0.2,
-    correlationFactor: 0.15,
-    vaultCapacity: 0.2,
-    treasuryAlignment: 0.1
-  };
-  
-  let score = 0;
-  for (const [factor, value] of Object.entries(factors)) {
-    score += (value || 0) * weights[factor];
-  }
-  
-  return Math.min(Math.max(score, 0), 1); // Clamp between 0 and 1
-};
+
 
 const getRecommendation = (score, risks) => {
   const highRisks = risks.filter(r => r.severity === 'high').length;
@@ -556,23 +513,6 @@ const getRecommendation = (score, risks) => {
   }
 };
 
-// Helper function to estimate borrowing costs
-const estimateBorrowingCosts = (swapSize, vaultData) => {
-  if (!vaultData) return { severity: 'unknown', estimatedAPY: 'N/A' };
-  
-  const utilization = parseFloat(vaultData.utilization || 0);
-  const baseAPY = parseFloat(vaultData.borrowAPY || 5); // Default 5% if not provided
-  
-  // Higher utilization = higher rates (simplified model)
-  const utilizationMultiplier = utilization > 0.8 ? 2 : utilization > 0.6 ? 1.5 : 1;
-  const estimatedAPY = baseAPY * utilizationMultiplier;
-  
-  return {
-    severity: estimatedAPY > 15 ? 'high' : estimatedAPY > 10 ? 'medium' : 'low',
-    estimatedAPY: estimatedAPY.toFixed(2),
-    dailyCost: (swapSize * estimatedAPY / 365 / 100).toFixed(2)
-  };
-};
 
 // Helper function to estimate slippage
 const estimateSlippage = (concentrationX, concentrationY, swapSizes) => {
@@ -604,8 +544,299 @@ const verifyCurveConstraints = (ammParams) => {
   return priceValid && concentrationValid && reservesValid && feeValid;
 };
 
+// Helper function for safe BigInt conversion
+const safeBigInt = (value, defaultValue = 0) => {
+  if (value === null || value === undefined || isNaN(value) || !isFinite(value)) {
+    console.warn('Invalid value for BigInt conversion:', value);
+    return BigInt(defaultValue);
+  }
+  return BigInt(Math.floor(Math.max(0, value)));
+};
+
 // Comprehensive parameter validation for EulerSwap
-export const validateEulerSwapParams = (params) => {
+export // Robust price impact calculations based on EulerSwap's actual curve mathematics
+
+// Direct implementation of EulerSwap's f() function from CurveLib.sol
+const calculateCurveF = (x, px, py, x0, y0, c) => {
+  // Using BigInt for precision to match Solidity's behavior
+  const x_bi = safeBigInt(x);
+  const px_bi = safeBigInt(px, 1);
+  const py_bi = safeBigInt(py, 1);
+  const x0_bi = safeBigInt(x0);
+  const y0_bi = safeBigInt(y0);
+  const c_bi = safeBigInt(c);
+  const ONE_E18 = BigInt(1e18);
+  
+  // v = Math.mulDiv(px * (x0 - x), c * x + (1e18 - c) * x0, x * 1e18, Math.Rounding.Ceil)
+  const numerator = px_bi * (x0_bi - x_bi);
+  const denominator1 = c_bi * x_bi + (ONE_E18 - c_bi) * x0_bi;
+  const denominator2 = x_bi * ONE_E18;
+  
+  // Ceiling division for v
+  const v = (numerator * denominator1 + denominator2 - 1n) / denominator2;
+  
+  // return y0 + (v + (py - 1)) / py
+  const result = y0_bi + (v + py_bi - 1n) / py_bi;
+  
+  return Number(result);
+};
+
+// Implementation of EulerSwap's fInverse() function (simplified quadratic solver)
+const calculateCurveFInverse = (y, px, py, x0, y0, c) => {
+  // Validate inputs
+  if ([y, px, py, x0, y0, c].some(v => v === null || v === undefined || isNaN(v))) {
+    console.error('Invalid inputs to calculateCurveFInverse:', { y, px, py, x0, y0, c });
+    return 0;
+  }
+  
+  // Convert to BigInt for precision
+  const y_bi = safeBigInt(y);
+  const px_bi = safeBigInt(px, 1);
+  const py_bi = safeBigInt(py, 1);
+  const x0_bi = safeBigInt(x0);
+  const y0_bi = safeBigInt(y0);
+  const c_bi = safeBigInt(c);
+  const ONE_E18 = BigInt(1e18);
+  
+  // Quadratic equation components
+  const term1 = (py_bi * ONE_E18 * (y_bi - y0_bi)) / px_bi;
+  const term2 = (2n * c_bi - ONE_E18) * x0_bi;
+  const B = (term1 - term2) / ONE_E18;
+  
+  const C = ((ONE_E18 - c_bi) * x0_bi * x0_bi) / ONE_E18;
+  const fourAC = (4n * c_bi * C) / ONE_E18;
+  
+  const absB = B >= 0n ? B : -B;
+  
+  // Calculate discriminant and solve
+  // Using JavaScript's Math.sqrt for simplicity (production code should use BigInt sqrt)
+  const discriminant = Number(absB * absB + fourAC);
+  const sqrt_disc = BigInt(Math.floor(Math.sqrt(discriminant)));
+  
+  let x;
+  if (B <= 0n) {
+    // Standard quadratic formula
+    x = ((absB + sqrt_disc) * ONE_E18) / (2n * c_bi) + 1n;
+  } else {
+    // Citardauq formula for numerical stability
+    x = (2n * C) / (absB + sqrt_disc) + 1n;
+  }
+  
+  // Return min(x, x0)
+  return Number(x < x0_bi ? x : x0_bi);
+};
+
+// Calculate exact price impact using EulerSwap curve mathematics
+export const calculateExactPriceImpact = (params) => {
+  const {
+    swapAmount,
+    currentReserve0,
+    currentReserve1,
+    equilibriumReserve0,
+    equilibriumReserve1,
+    priceX,
+    priceY,
+    concentrationX,
+    concentrationY,
+    fee = 0.003e18, // 0.3% default fee
+    isToken0Input = true
+  } = params;
+  
+  // Apply fee to input amount (as done in QuoteLib.computeQuote)
+  const effectiveAmount = swapAmount * (1 - fee / 1e18);
+  
+  // Get initial price - handle case when reserve0 is very small
+  const initialPrice = currentReserve0 > 0 ? currentReserve1 / currentReserve0 : priceY / priceX;
+  
+  let newReserve0, newReserve1, outputAmount;
+  
+  if (isToken0Input) {
+    // Swap token0 in, token1 out
+    newReserve0 = currentReserve0 + effectiveAmount;
+    
+    if (newReserve0 <= equilibriumReserve0) {
+      // Use f() function
+      newReserve1 = calculateCurveF(
+        newReserve0, priceX, priceY, 
+        equilibriumReserve0, equilibriumReserve1, concentrationX
+      );
+    } else {
+      // Use fInverse() function
+      newReserve1 = calculateCurveFInverse(
+        newReserve0, priceY, priceX, 
+        equilibriumReserve1, equilibriumReserve0, concentrationY
+      );
+    }
+    
+    outputAmount = currentReserve1 - newReserve1;
+  } else {
+    // Swap token1 in, token0 out
+    newReserve1 = currentReserve1 + effectiveAmount;
+    
+    if (newReserve1 <= equilibriumReserve1) {
+      // Use f() function (g in the original)
+      newReserve0 = calculateCurveF(
+        newReserve1, priceY, priceX, 
+        equilibriumReserve1, equilibriumReserve0, concentrationY
+      );
+    } else {
+      // Use fInverse() function
+      newReserve0 = calculateCurveFInverse(
+        newReserve1, priceX, priceY, 
+        equilibriumReserve0, equilibriumReserve1, concentrationX
+      );
+    }
+    
+    outputAmount = currentReserve0 - newReserve0;
+  }
+  
+  // Ensure output is positive
+  outputAmount = Math.max(0, outputAmount);
+  
+  // Calculate final price and impact - handle edge cases
+  const finalPrice = newReserve0 > 0 ? newReserve1 / newReserve0 : priceY / priceX;
+  const priceImpact = initialPrice > 0 ? Math.abs((finalPrice - initialPrice) / initialPrice) : 0;
+  
+  // Calculate effective price (including fees)
+  const effectivePrice = outputAmount / swapAmount;
+  
+  return {
+    outputAmount,
+    priceImpact,
+    priceImpactPercentage: priceImpact * 100,
+    newReserve0,
+    newReserve1,
+    effectivePrice,
+    initialPrice,
+    finalPrice,
+    slippage: (1 - effectivePrice / initialPrice) * 100
+  };
+};
+
+// Calculate price impact for one-sided merger swaps
+export const calculateMergerPriceImpact = (
+  totalSwapAmount,
+  circulatingSupply,
+  ammParameters,
+  executionParams = {}
+) => {
+  // Extract execution parameters with defaults
+  const {
+    numberOfBatches = 10,
+    batchDistribution = null // null means equal distribution
+  } = executionParams;
+  
+  // Use the curve-based calculation for all pools
+  let currentReserve0 = ammParameters.currReserve0 || 1; // Default to 1 if not provided
+  let currentReserve1 = ammParameters.currReserve1;
+  let totalOutput = 0;
+  let totalInputSoFar = 0;
+  
+  const impacts = [];
+  
+  // Calculate batch sizes based on distribution
+  const batchSizes = [];
+  if (batchDistribution && Array.isArray(batchDistribution)) {
+    // Use provided distribution (e.g., [0.3, 0.25, 0.2, 0.15, 0.1] for rapid)
+    for (let i = 0; i < numberOfBatches; i++) {
+      batchSizes.push(totalSwapAmount * (batchDistribution[i] || 1/numberOfBatches));
+    }
+  } else {
+    // Equal distribution
+    const batchSize = totalSwapAmount / numberOfBatches;
+    for (let i = 0; i < numberOfBatches; i++) {
+      batchSizes.push(batchSize);
+    }
+  }
+  
+  for (let i = 0; i < numberOfBatches; i++) {
+    const result = calculateExactPriceImpact({
+      swapAmount: batchSizes[i],
+      currentReserve0,
+      currentReserve1,
+      equilibriumReserve0: ammParameters.equilibriumReserve0,
+      equilibriumReserve1: ammParameters.equilibriumReserve1,
+      priceX: ammParameters.priceX,
+      priceY: ammParameters.priceY,
+      concentrationX: ammParameters.concentrationX,
+      concentrationY: ammParameters.concentrationY,
+      fee: ammParameters.fee,
+      isToken0Input: true // Phased-out tokens coming in
+    });
+    
+    // Update totals
+    totalOutput += result.outputAmount;
+    totalInputSoFar += batchSizes[i];
+    
+    // Calculate cumulative slippage from expected rate
+    // Note: priceX and priceY are in 1e18 format, so the rate doesn't need adjustment
+    // But we need to ensure amounts are in the same units
+    const expectedRate = ammParameters.priceY / ammParameters.priceX;
+    const expectedOutputSoFar = totalInputSoFar * expectedRate;
+    const actualOutputSoFar = totalOutput;
+    const cumulativeSlippage = actualOutputSoFar > 0 
+      ? ((expectedOutputSoFar - actualOutputSoFar) / expectedOutputSoFar) * 100
+      : 0;
+    
+    impacts.push({
+      batch: i + 1,
+      swapAmount: batchSizes[i],
+      outputAmount: result.outputAmount,
+      priceImpact: result.priceImpactPercentage,
+      cumulativeImpact: cumulativeSlippage,
+      // Add cumulative totals for accurate price calculation
+      cumulativeInput: totalInputSoFar,
+      cumulativeOutput: totalOutput
+    });
+    
+    // Update reserves for next iteration
+    currentReserve0 = result.newReserve0;
+    currentReserve1 = result.newReserve1;
+  }
+  
+  // Calculate total price impact as average slippage from expected rate
+  // priceX and priceY are both in 1e18 format, so direct ratio gives the rate
+  const expectedRate = ammParameters.priceY / ammParameters.priceX;
+  const expectedTotalOutput = totalSwapAmount * expectedRate;
+  const actualTotalOutput = totalOutput;
+  const totalPriceImpact = ((expectedTotalOutput - actualTotalOutput) / expectedTotalOutput) * 100;
+  
+  // Log only if there's an issue
+  if (Math.abs(totalPriceImpact) > 50 || totalOutput === 0) {
+    console.warn('Price impact issue detected:', {
+      totalSwapAmount,
+      expectedRate,
+      expectedTotalOutput,
+      actualTotalOutput,
+      totalPriceImpact,
+      priceX: ammParameters.priceX,
+      priceY: ammParameters.priceY,
+      currReserve1: ammParameters.currReserve1,
+      numberOfBatches: executionParams.numberOfBatches,
+      firstBatchOutput: impacts[0]?.outputAmount || 0
+    });
+  }
+  
+  // Calculate average effective price
+  const averagePrice = totalOutput / totalSwapAmount;
+  const expectedPrice = ammParameters.priceY / ammParameters.priceX;
+  const totalSlippage = (1 - averagePrice / expectedPrice) * 100;
+  
+  return {
+    totalPriceImpact,
+    totalSlippage,
+    averagePrice,
+    impacts,
+    breakdown: impacts, // Add breakdown field for UI
+    recommendation: totalPriceImpact > 10 ? 
+      'High price impact - consider increasing concentration or splitting over more days' :
+      totalPriceImpact > 5 ?
+      'Moderate price impact - current parameters acceptable' :
+      'Low price impact - efficient execution expected'
+  };
+};
+
+const validateEulerSwapParams = (params) => {
   const errors = [];
   const MAX_UINT112 = 2**112 - 1;
   

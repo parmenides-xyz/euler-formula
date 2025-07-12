@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useEffect, useReducer } from 'react';
 import {
   fetchPrices,
-  fetchTreasuries,
-  fetchVaults,
+  fetchTokenCirculation,
   analyzeMergerContext,
   calculateMergerConfiguration
 } from '../services/api';
@@ -10,8 +9,7 @@ import {
 // Initial state
 const initialState = {
   prices: [], // DAO token prices with history
-  treasuries: [], // DAO treasury data
-  vaults: null, // Euler Prime USDC vault data
+  circulationData: {}, // Token circulation data by symbol
   mergerConfiguration: null, // Calculated merger config
   loading: true,
   isUpdating: false,
@@ -33,8 +31,7 @@ const ACTIONS = {
   SET_ANALYZING: 'SET_ANALYZING',
   SET_ANALYSIS: 'SET_ANALYSIS',
   SET_ANALYSIS_ERROR: 'SET_ANALYSIS_ERROR',
-  SET_TREASURIES: 'SET_TREASURIES',
-  SET_VAULTS: 'SET_VAULTS',
+  SET_CIRCULATION_DATA: 'SET_CIRCULATION_DATA',
   SET_MERGER_CONFIG: 'SET_MERGER_CONFIG',
   SET_CALCULATING: 'SET_CALCULATING'
 };
@@ -61,23 +58,10 @@ const dataReducer = (state, action) => {
         lastUpdated: new Date().toISOString()
       };
     
-    case ACTIONS.UPDATE_MACHINES:
-      return {
-        ...state,
-        machines: { ...state.machines, ...action.payload },
-        isUpdating: false
-      };
-    
     case ACTIONS.REFRESH_DATA:
       return {
         ...state,
         lastUpdated: new Date().toISOString()
-      };
-    
-    case ACTIONS.UPDATE_SITE_CONFIG:
-      return {
-        ...state,
-        ...action.payload
       };
     
     case ACTIONS.SET_ANALYZING:
@@ -98,6 +82,12 @@ const dataReducer = (state, action) => {
         isAnalyzing: false 
       };
     
+    case ACTIONS.SET_CIRCULATION_DATA:
+      return {
+        ...state,
+        circulationData: { ...state.circulationData, ...action.payload }
+      };
+    
     default:
       return state;
   }
@@ -115,15 +105,45 @@ export const DataProvider = ({ children }) => {
     try {
       dispatch({ type: ACTIONS.SET_LOADING, payload: true });
       
-      const [prices, treasuries, vaults] = await Promise.all([
-        fetchPrices(),
-        fetchTreasuries(),
-        fetchVaults()
-      ]);
+      // First fetch prices
+      const prices = await fetchPrices();
+      
+      // Then fetch circulation data for all tokens that have prices
+      const circulationPromises = prices.map(async (priceData) => {
+        try {
+          const circulation = await fetchTokenCirculation(priceData.symbol);
+          if (circulation) {
+            // Calculate market cap
+            const marketCap = (circulation.circulatingSupply || 0) * (priceData.currentPrice || 0);
+            return {
+              symbol: priceData.symbol,
+              data: {
+                ...circulation,
+                currentPrice: priceData.currentPrice,
+                marketCap
+              }
+            };
+          }
+          return null;
+        } catch (error) {
+          console.error(`Failed to fetch circulation for ${priceData.symbol}:`, error);
+          return null;
+        }
+      });
+      
+      const circulationResults = await Promise.all(circulationPromises);
+      
+      // Convert to object keyed by symbol
+      const circulationData = {};
+      circulationResults.forEach(result => {
+        if (result && result.data) {
+          circulationData[result.symbol] = result.data;
+        }
+      });
       
       dispatch({
         type: ACTIONS.SET_DATA,
-        payload: { prices, treasuries, vaults }
+        payload: { prices, circulationData }
       });
     } catch (error) {
       console.error('Error loading data:', error);
@@ -132,17 +152,36 @@ export const DataProvider = ({ children }) => {
   };
 
   // Calculate merger configuration function
-  const calculateMergerConfig = async (daoA, daoB) => {
+  const calculateMergerConfig = async (daoA, daoB, executionStrategy = {}) => {
     try {
       dispatch({ type: ACTIONS.SET_UPDATING, payload: true });
       
-      // Pass existing data to avoid re-fetching
+      // Use existing circulation data if available, otherwise fetch
+      const existingCirculationA = state.circulationData[daoA.symbol];
+      const existingCirculationB = state.circulationData[daoB.symbol];
+      
+      const [circulationA, circulationB] = await Promise.all([
+        existingCirculationA || fetchTokenCirculation(daoA.symbol),
+        existingCirculationB || fetchTokenCirculation(daoB.symbol)
+      ]);
+      
+      // Store in state for reuse
+      dispatch({
+        type: ACTIONS.SET_CIRCULATION_DATA,
+        payload: {
+          [daoA.symbol]: circulationA,
+          [daoB.symbol]: circulationB
+        }
+      });
+      
+      // Pass to calculateMergerConfiguration with correct structure
       const existingData = {
         prices: state.prices,
-        treasuries: state.treasuries,
-        vaults: state.vaults
+        circulationA,
+        circulationB
       };
-      const mergerConfiguration = await calculateMergerConfiguration(daoA, daoB, existingData);
+      
+      const mergerConfiguration = await calculateMergerConfiguration(daoA, daoB, existingData, executionStrategy);
       
       dispatch({
         type: ACTIONS.SET_DATA,
@@ -168,13 +207,38 @@ export const DataProvider = ({ children }) => {
     try {
       dispatch({ type: ACTIONS.SET_ANALYZING, payload: true });
       
+      // Extract DAO information from merger configuration
+      let daoA = null;
+      let daoB = null;
+      
+      if (state.mergerConfiguration && state.mergerConfiguration.swapConfiguration) {
+        const { phasedOutToken, survivingToken } = state.mergerConfiguration.swapConfiguration;
+        
+        // Get circulation data for each token
+        const phasedOutData = state.circulationData[phasedOutToken];
+        const survivingData = state.circulationData[survivingToken];
+        
+        if (phasedOutData && survivingData) {
+          daoA = {
+            symbol: phasedOutToken,
+            price: phasedOutData.currentPrice || 0
+          };
+          daoB = {
+            symbol: survivingToken,
+            price: survivingData.currentPrice || 0
+          };
+        }
+      }
+      
       // Prepare merger context for analysis
       const mergerContext = {
         prices: state.prices,
-        treasuries: state.treasuries,
-        vaults: state.vaults,
+        circulationData: state.circulationData,
         mergerConfiguration: state.mergerConfiguration,
-        lastUpdated: state.lastUpdated
+        lastUpdated: state.lastUpdated,
+        // Include daoA and daoB for backward compatibility
+        daoA: daoA,
+        daoB: daoB
       };
       
       const analysisResult = await analyzeMergerContext(mergerContext);
@@ -203,6 +267,11 @@ export const DataProvider = ({ children }) => {
     return () => clearInterval(interval);
   }, []);
 
+  // Helper function to get circulation data for a specific token
+  const getTokenCirculation = (symbol) => {
+    return state.circulationData[symbol] || null;
+  };
+
   // Context value
   const value = {
     ...state,
@@ -210,6 +279,7 @@ export const DataProvider = ({ children }) => {
     calculateMergerConfig,
     refreshData,
     performAnalysis,
+    getTokenCirculation,
     dispatch
   };
 
@@ -274,9 +344,18 @@ export const getMetricColor = (metric) => {
     case 'SILO': return { primary: '#E5312B', secondary: '#D42A24', gradient: 'from-red-500 to-red-600' };
     case 'XVS': return { primary: '#F8D12F', secondary: '#E7C01E', gradient: 'from-yellow-400 to-yellow-500' };
     case 'MNT': return { primary: '#000000', secondary: '#1A1A1A', gradient: 'from-black to-gray-900' };
-    // Treasury types
-    case 'ownTokens': return { primary: '#10B981', secondary: '#059669', gradient: 'from-emerald-500 to-teal-600' };
-    case 'stablecoins': return { primary: '#3B82F6', secondary: '#2563EB', gradient: 'from-blue-500 to-blue-600' };
+    // Merger states
+    case 'phasedOut': return { primary: '#DC2626', secondary: '#B91C1C', gradient: 'from-red-600 to-red-700' };
+    case 'surviving': return { primary: '#059669', secondary: '#047857', gradient: 'from-emerald-600 to-emerald-700' };
+    case 'merging': return { primary: '#7C3AED', secondary: '#6D28D9', gradient: 'from-violet-600 to-violet-700' };
+    // Price discovery scenarios
+    case 'tightDiscovery': return { primary: '#F59E0B', secondary: '#D97706', gradient: 'from-amber-500 to-amber-600' };
+    case 'gradualDiscovery': return { primary: '#3B82F6', secondary: '#2563EB', gradient: 'from-blue-500 to-blue-600' };
+    case 'wideDiscovery': return { primary: '#8B5CF6', secondary: '#7C3AED', gradient: 'from-violet-500 to-violet-600' };
+    // Execution strategies
+    case 'rapidExecution': return { primary: '#EF4444', secondary: '#DC2626', gradient: 'from-red-500 to-red-600' };
+    case 'gradualExecution': return { primary: '#10B981', secondary: '#059669', gradient: 'from-emerald-500 to-emerald-600' };
+    case 'dynamicExecution': return { primary: '#F59E0B', secondary: '#D97706', gradient: 'from-amber-500 to-amber-600' };
     default: return { primary: '#6B7280', secondary: '#4B5563', gradient: 'from-gray-500 to-gray-600' };
   }
 }; 

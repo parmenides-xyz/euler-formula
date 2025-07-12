@@ -1,4 +1,5 @@
-import { aiModules, liveEvents, marketData, treasuryData } from '../services/mergerDataService';
+import { aiModules, liveEvents, marketData, circulationData } from '../services/mergerDataService';
+import { decodeAmountCap, formatCapValue } from './eulerUtils';
 
 export class MergerRecommendations {
   constructor() {
@@ -6,7 +7,7 @@ export class MergerRecommendations {
       greetings: [
         "Welcome to FORMULA merger analysis!",
         "Ready to optimize your DAO merger strategy.",
-        "Let's explore capital-efficient merger opportunities.",
+        "Let's explore one-sided JIT merger opportunities.",
         "EulerSwap merger simulator initialized."
       ],
       confidence_phrases: [
@@ -14,14 +15,14 @@ export class MergerRecommendations {
         "Data strongly suggests",
         "Calculations confirm",
         "Metrics reveal",
-        "Cross-collateralization analysis shows"
+        "One-sided JIT analysis shows"
       ],
       insights: [
         "Key observation:",
         "Important finding:",
         "Analysis result:",
         "Simulation insight:",
-        "Efficiency metric:"
+        "Price discovery metric:"
       ],
       conclusions: [
         "Recommendation:",
@@ -48,26 +49,26 @@ export class MergerRecommendations {
 
   analyzeMarketConditions() {
     // Analyze current market data to provide status
-    const daoCount = treasuryData.length;
-    const highValueDAOs = treasuryData.filter(t => t.totalValueUSD > 50000000).length;
+    const daoCount = circulationData.length;
+    const highValueDAOs = circulationData.filter(t => t.marketCap > 50000000).length;
     const averageVolatility = marketData.reduce((sum, m) => sum + m.volatility, 0) / marketData.length;
     
     if (highValueDAOs >= 3 && averageVolatility < 0.4) {
       return {
         status: 'green',
-        message: `${highValueDAOs} high-value DAOs identified with stable volatility. Optimal conditions for cross-collateralization mergers.`,
+        message: `${highValueDAOs} high-value tokens identified with stable volatility. Optimal conditions for one-sided JIT mergers.`,
         confidence: 94
       };
     } else if (daoCount >= 5) {
       return {
         status: 'yellow',
-        message: `Analyzing ${daoCount} DAO treasuries for merger opportunities. Market volatility at ${(averageVolatility * 100).toFixed(1)}%.`,
+        message: `Analyzing ${daoCount} DAO tokens for merger opportunities. Market volatility at ${(averageVolatility * 100).toFixed(1)}%.`,
         confidence: 78
       };
     } else {
       return {
         status: 'yellow',
-        message: 'Gathering market data and analyzing treasury positions. Merger opportunities being evaluated.',
+        message: 'Gathering market data and analyzing token circulation. Merger opportunities being evaluated.',
         confidence: 65
       };
     }
@@ -82,7 +83,7 @@ export class MergerRecommendations {
     if (containsBlockedTopic) {
       return {
         isBlocked: true,
-        response: `I'm designed to help with DAO merger analysis using EulerSwap's capital-efficient mechanisms. Let me assist you with treasury optimization, merger feasibility, or simulation parameters instead.`
+        response: `I'm designed to help with DAO merger analysis using EulerSwap's one-sided JIT liquidity model. Let me assist you with merger feasibility, price discovery, or simulation parameters instead.`
       };
     }
 
@@ -105,7 +106,7 @@ export class MergerRecommendations {
     }
 
     const recommendations = [];
-    const { feasibility, mergerType, swapConfiguration, vaultConfiguration, capitalEfficiency, timeline, risks } = mergerConfig;
+    const { feasibility, mergerType, swapConfiguration, vaultConfiguration, timeline, risks, mergerMetrics } = mergerConfig;
 
     // Primary merger simulation recommendation
     if (feasibility.viable) {
@@ -117,40 +118,37 @@ export class MergerRecommendations {
         description: feasibility.recommendation,
         
         simulationParams: {
-          swapSizeA: swapConfiguration.sizes.tokenAAmount,
-          swapSizeB: swapConfiguration.sizes.tokenBAmount,
-          percentageA: swapConfiguration.sizes.percentageA,
-          percentageB: swapConfiguration.sizes.percentageB,
-          totalValueUSD: swapConfiguration.sizes.totalValueUSD,
+          requiredMint: mergerMetrics.requiredMint,
+          dilutionPercentage: mergerMetrics.dilutionPercentage,
+          totalSwapAmount: swapConfiguration.totalSwapAmount,
+          phasedOutToken: swapConfiguration.phasedOutToken,
+          survivingToken: swapConfiguration.survivingToken,
           
-          collateral: {
-            daoA: swapConfiguration.collateral.daoA.usdcRequired,
-            daoB: swapConfiguration.collateral.daoB.usdcRequired,
-            total: swapConfiguration.collateral.daoA.usdcRequired + swapConfiguration.collateral.daoB.usdcRequired
-          },
+          fundingNeeded: vaultConfiguration.fundingStrategy.totalRequired,
+          fundingSource: vaultConfiguration.fundingStrategy.source,
           
           ammParams: {
             concentrationX: swapConfiguration.ammParameters.concentrationX / 1e18,
             concentrationY: swapConfiguration.ammParameters.concentrationY / 1e18,
             fee: swapConfiguration.ammParameters.fee / 1e18,
-            virtualReserveA: swapConfiguration.ammParameters.equilibriumReserve0,
-            virtualReserveB: swapConfiguration.ammParameters.equilibriumReserve1
+            equilibriumReserve0: swapConfiguration.ammParameters.equilibriumReserve0,
+            equilibriumReserve1: swapConfiguration.ammParameters.equilibriumReserve1
           }
         },
         
         expectedOutcomes: {
           feasibilityScore: `${Math.round(feasibility.score * 100)}%`,
-          capitalEfficiency: capitalEfficiency.leverageMultiple + 'x vs traditional AMM',
-          liquidityMultiplier: vaultConfiguration.crossCollateralization.crossDepositMultiplier + 'x',
+          priceImpact: `${mergerMetrics.priceImpact?.total?.toFixed(1) || 'N/A'}% total impact`,
+          averageImpactPerBatch: `${mergerMetrics.priceImpact?.average?.toFixed(2) || 'N/A'}%`,
           timeline: timeline.total + ' ' + timeline.unit,
-          crossDepositEffect: 'Each swap increases borrowable liquidity'
+          dilution: `${mergerMetrics.dilutionPercentage.toFixed(1)}% for ${swapConfiguration.survivingToken} holders`
         },
         
         metrics: {
-          usdcUtilization: `${(vaultConfiguration.usdc.utilization * 100).toFixed(1)}%`,
-          borrowAPR: `${vaultConfiguration.usdc.borrowAPR.toFixed(2)}%`,
-          availableLiquidity: `$${(vaultConfiguration.usdc.cash / 1e6).toFixed(1)}M`,
-          ltv: `${(vaultConfiguration.crossCollateralization.ltv * 100).toFixed(0)}%`
+          vaultFundingNeeded: `${(vaultConfiguration.fundingStrategy.totalRequired / 1e6).toFixed(1)}M ${swapConfiguration.survivingToken}`,
+          borrowAPR: `${vaultConfiguration.survivingVault.interestRateModel.description}`,
+          marketCapRatio: `${mergerMetrics.marketCapRatio.toFixed(2)}:1`,
+          totalValueSwapped: `$${(mergerMetrics.totalValueUSD / 1e6).toFixed(1)}M`
         },
         
         risks: risks.map(r => ({
@@ -161,46 +159,39 @@ export class MergerRecommendations {
         }))
       });
 
-      // Add collateral optimization simulation
-      if (swapConfiguration.collateral.daoA.availableUsdc < swapConfiguration.collateral.daoA.usdcRequired ||
-          swapConfiguration.collateral.daoB.availableUsdc < swapConfiguration.collateral.daoB.usdcRequired) {
-        recommendations.push({
-          id: `sim-collateral-${Date.now()}`,
-          type: 'collateral_optimization',
+      // Add funding preparation recommendation (always required for one-sided JIT)
+      recommendations.push({
+          id: `sim-funding-${Date.now()}`,
+          type: 'vault_funding',
           priority: 'high',
-          title: 'USDC Collateral Acquisition Simulation',
-          description: 'Simulate optimal USDC acquisition strategy for merger',
+          title: 'Vault Funding Preparation',
+          description: `${swapConfiguration.survivingToken} DAO must fund vault before merger execution`,
           
           simulationParams: {
-            currentUsdcA: swapConfiguration.collateral.daoA.availableUsdc,
-            currentUsdcB: swapConfiguration.collateral.daoB.availableUsdc,
-            requiredUsdcA: swapConfiguration.collateral.daoA.usdcRequired,
-            requiredUsdcB: swapConfiguration.collateral.daoB.usdcRequired,
-            deficitA: Math.max(0, swapConfiguration.collateral.daoA.usdcRequired - swapConfiguration.collateral.daoA.availableUsdc),
-            deficitB: Math.max(0, swapConfiguration.collateral.daoB.usdcRequired - swapConfiguration.collateral.daoB.availableUsdc)
+            tokenToMint: swapConfiguration.survivingToken,
+            amountRequired: vaultConfiguration.fundingStrategy.totalRequired,
+            dilutionImpact: mergerMetrics.dilutionPercentage,
+            governanceRequired: true
           },
           
           expectedOutcomes: {
-            acquisitionCost: 'Market rate + 0.3% slippage',
-            timeToAcquire: '2-4 hours via DEX aggregators',
-            alternativeStrategy: 'Reduce swap size to match available collateral'
+            timeToApproval: '3-7 days for governance vote',
+            executionTime: '1 hour after approval',
+            alternativeStrategy: 'Reduce merger size to avoid minting'
           },
           
           metrics: {
-            currentCollateralCoverage: `${Math.min(
-              swapConfiguration.collateral.daoA.availableUsdc / swapConfiguration.collateral.daoA.usdcRequired,
-              swapConfiguration.collateral.daoB.availableUsdc / swapConfiguration.collateral.daoB.usdcRequired
-            ) * 100}%`
+            fundingAsPercentOfSupply: `${mergerMetrics.dilutionPercentage.toFixed(1)}%`,
+            vaultFundingRequired: `${(vaultConfiguration.fundingStrategy.totalRequired / 1e6).toFixed(1)}M tokens`
           },
           
           risks: [{
-            type: 'execution',
+            type: 'governance',
             severity: 'medium',
-            description: 'Large USDC purchases may move market',
-            mitigation: 'Use OTC or staged acquisition'
+            description: 'Token holders may reject dilutive minting',
+            mitigation: 'Clear communication of merger benefits and long-term value'
           }]
         });
-      }
     } else {
       // Non-viable merger analysis
       recommendations.push({
@@ -240,80 +231,250 @@ export class MergerRecommendations {
 
   generateScenarioVariations(mergerConfig, daoA, daoB) {
     const variations = [];
-    const baseConfig = mergerConfig.swapConfiguration;
-
-    // Conservative scenario
-    variations.push({
-      id: `scenario-conservative-${Date.now()}`,
-      type: 'scenario',
-      priority: 'medium',
-      title: 'Conservative Approach (30% Treasury Swap)',
-      description: 'Lower risk profile with reduced swap sizes',
-      
-      simulationParams: {
-        swapPercentage: 30,
-        swapSizeA: baseConfig.sizes.tokenAAmount * 0.3,
-        swapSizeB: baseConfig.sizes.tokenBAmount * 0.3,
-        collateralRequired: (baseConfig.collateral.daoA.usdcRequired + baseConfig.collateral.daoB.usdcRequired) * 0.3,
-        concentration: 0.7 // Wider bands for safety
-      },
-      
-      expectedOutcomes: {
-        capitalEfficiency: '4.2x vs traditional AMM',
-        riskLevel: 'Low',
-        executionComplexity: 'Simple'
-      },
-      
-      metrics: {
-        expectedSlippage: '0.5%',
-        timeTocomplete: '24 hours'
-      },
-      
-      risks: [{
-        type: 'opportunity',
-        severity: 'low',
-        description: 'May not achieve full synergy benefits',
-        mitigation: 'Can increase swap size later if successful'
-      }]
-    });
-
-    // Aggressive scenario (if base is not already aggressive)
-    if (mergerConfig.swapConfiguration.sizes.percentageA < 60) {
+    const { mergerMetrics, volatilityAnalysis } = mergerConfig;
+    const totalSwapAmount = mergerMetrics.requiredMint;
+    const circulatingSupply = daoB.circulatingSupply || daoB.totalSupply || 1e9; // Fallback values
+    
+    // Determine optimal scenario based on conditions
+    const volatilityA = volatilityAnalysis?.daoA?.volatility || 0.3;
+    const volatilityB = volatilityAnalysis?.daoB?.volatility || 0.3;
+    const avgVolatility = (volatilityA + volatilityB) / 2;
+    
+    // Price Discovery Scenarios
+    
+    // 1. Tight Discovery Scenario
+    if (avgVolatility < 0.4 && mergerMetrics.marketCapRatio > 0.5 && mergerMetrics.marketCapRatio < 2) {
       variations.push({
-        id: `scenario-aggressive-${Date.now()}`,
-        type: 'scenario',
-        priority: 'low',
-        title: 'Aggressive Approach (70% Treasury Swap)',
-        description: 'Maximum efficiency with higher risk tolerance',
+        id: `scenario-tight-discovery-${Date.now()}`,
+        type: 'price_discovery',
+        priority: 'high',
+        title: 'Tight Price Discovery (0.5, 0.95)',
+        description: 'Minimal price impact within equilibrium zone, sharp discovery beyond',
         
         simulationParams: {
-          swapPercentage: 70,
-          swapSizeA: baseConfig.sizes.tokenAAmount * 2,
-          swapSizeB: baseConfig.sizes.tokenBAmount * 2,
-          collateralRequired: (baseConfig.collateral.daoA.usdcRequired + baseConfig.collateral.daoB.usdcRequired) * 2,
-          concentration: 0.95 // Tight bands for efficiency
+          concentrationX: 0.5,
+          concentrationY: 0.95,
+          discoveryEfficiency: 0.95,
+          equilibriumZone: '±5% of equilibrium reserves',
+          expectedImpactWithinZone: '0.1-0.5%',
+          expectedImpactBeyondZone: 'Quadratic increase'
         },
         
         expectedOutcomes: {
-          capitalEfficiency: '6.8x vs traditional AMM',
-          riskLevel: 'High',
-          executionComplexity: 'Complex - requires active management'
+          priceDiscoverySpeed: '95% discovery in first 10% of swaps',
+          totalPriceImpact: `${this.calculateTightDiscoveryImpact(totalSwapAmount, circulatingSupply, totalSwapAmount * 0.1).toFixed(1)}%`,
+          riskLevel: 'Low within zone, High beyond',
+          bestFor: 'Stable tokens with high confidence in valuation'
         },
         
         metrics: {
-          expectedSlippage: '1.5%',
-          timeTocomplete: '72 hours phased'
+          concentrationParameters: { X: 0.5, Y: 0.95 },
+          impactFormula: 'Quadratic beyond 5% zone',
+          avgBatchImpact: '0.5-1.0%'
         },
         
         risks: [{
-          type: 'liquidation',
-          severity: 'high',
-          description: 'Higher liquidation risk with tight LTV',
-          mitigation: 'Continuous monitoring and rebalancing required'
+          type: 'sharp_movement',
+          severity: 'medium',
+          description: 'Price can move sharply if swaps exceed equilibrium zone',
+          mitigation: 'Monitor batch sizes and adjust if approaching zone boundary'
         }]
       });
     }
-
+    
+    // 2. Gradual Discovery Scenario (Default)
+    variations.push({
+      id: `scenario-gradual-discovery-${Date.now()}`,
+      type: 'price_discovery',
+      priority: avgVolatility >= 0.4 && avgVolatility <= 0.6 ? 'high' : 'medium',
+      title: 'Gradual Price Discovery (0.35, 0.85)',
+      description: 'Balanced approach with smooth price transitions',
+      
+      simulationParams: {
+        concentrationX: 0.35,
+        concentrationY: 0.85,
+        discoveryEfficiency: 0.70,
+        priceImpactModel: 'Linear with smoothing factor',
+        smoothingRange: '0-30% based on progress'
+      },
+      
+      expectedOutcomes: {
+        priceDiscoverySpeed: '70% discovery in first 30% of swaps',
+        totalPriceImpact: `${this.calculateGradualDiscoveryImpact(totalSwapAmount, circulatingSupply, totalSwapAmount).toFixed(1)}%`,
+        riskLevel: 'Medium',
+        bestFor: 'Moderate volatility tokens, standard mergers'
+      },
+      
+      metrics: {
+        concentrationParameters: { X: 0.35, Y: 0.85 },
+        impactFormula: 'Linear with progress smoothing',
+        avgBatchImpact: '2.0-3.0%'
+      },
+      
+      risks: [{
+        type: 'price_drift',
+        severity: 'low',
+        description: 'Gradual price movement may attract arbitrage',
+        mitigation: 'Expected behavior - helps with price discovery'
+      }]
+    });
+    
+    // 3. Wide Discovery Scenario
+    if (avgVolatility > 0.6 || mergerMetrics.marketCapRatio > 5 || mergerMetrics.marketCapRatio < 0.2) {
+      variations.push({
+        id: `scenario-wide-discovery-${Date.now()}`,
+        type: 'price_discovery',
+        priority: 'high',
+        title: 'Wide Price Discovery (0.25, 0.75)',
+        description: 'Maximum flexibility for volatile conditions',
+        
+        simulationParams: {
+          concentrationX: 0.25,
+          concentrationY: 0.75,
+          discoveryEfficiency: 0.50,
+          priceImpactModel: 'Near-constant rate',
+          volatilityAbsorption: 'High'
+        },
+        
+        expectedOutcomes: {
+          priceDiscoverySpeed: '50% - gradual throughout execution',
+          totalPriceImpact: `${this.calculateWideDiscoveryImpact(totalSwapAmount, circulatingSupply).toFixed(1)}%`,
+          riskLevel: 'Low volatility risk, Higher slippage',
+          bestFor: 'High volatility or large size differences'
+        },
+        
+        metrics: {
+          concentrationParameters: { X: 0.25, Y: 0.75 },
+          impactFormula: 'Constant 3.5% per unit',
+          avgBatchImpact: '3.0-4.0%'
+        },
+        
+        risks: [{
+          type: 'high_slippage',
+          severity: 'medium',
+          description: 'Higher constant slippage throughout execution',
+          mitigation: 'Acceptable trade-off for volatility protection'
+        }]
+      });
+    }
+    
+    // Execution Strategy Scenarios
+    
+    // 1. Rapid Execution
+    const rapidStrategy = this.getRapidExecutionStrategy();
+    variations.push({
+      id: `scenario-rapid-execution-${Date.now()}`,
+      type: 'execution_strategy',
+      priority: mergerMetrics.priceImpact?.total < 5 ? 'high' : 'low',
+      title: 'Rapid Execution (500 batches)',
+      description: 'Front-loaded execution for quick completion',
+      
+      simulationParams: {
+        numberOfBatches: rapidStrategy.batches,
+        batchDistribution: 'Front-loaded: 30%→25%→20%→15%→10%',
+        batchSizes: rapidStrategy.calculateBatchSizes(totalSwapAmount).map(size => 
+          `${(size / 1e6).toFixed(1)}M ${mergerConfig.swapConfiguration.phasedOutToken}`
+        ),
+        impactMultiplier: rapidStrategy.priceImpactMultiplier
+      },
+      
+      expectedOutcomes: {
+        completionTime: rapidStrategy.estimateCompletion(),
+        totalImpactAdjustment: `+${((rapidStrategy.priceImpactMultiplier - 1) * 100).toFixed(0)}% vs base`,
+        executionRisk: 'Higher per-batch impact',
+        bestFor: 'Time-sensitive mergers, stable markets'
+      },
+      
+      metrics: {
+        batchesPerDay: 1.7,
+        frontLoadingRatio: '55% in first 2 batches',
+        marketResponseTime: 'Limited'
+      },
+      
+      risks: [{
+        type: 'market_impact',
+        severity: 'medium',
+        description: 'Large initial batches may move market significantly',
+        mitigation: 'Suitable only for liquid tokens or urgent situations'
+      }]
+    });
+    
+    // 2. Gradual Execution
+    const gradualStrategy = this.getGradualExecutionStrategy();
+    variations.push({
+      id: `scenario-gradual-execution-${Date.now()}`,
+      type: 'execution_strategy',
+      priority: 'medium',
+      title: 'Gradual Execution (1000 batches)',
+      description: 'Even distribution for minimal market impact',
+      
+      simulationParams: {
+        numberOfBatches: gradualStrategy.batches,
+        batchDistribution: 'Equal 0.1% batches',
+        batchSize: `${(totalSwapAmount / 1000 / 1e6).toFixed(1)}M ${mergerConfig.swapConfiguration.phasedOutToken}`,
+        impactMultiplier: gradualStrategy.priceImpactMultiplier
+      },
+      
+      expectedOutcomes: {
+        completionTime: gradualStrategy.estimateCompletion(),
+        totalImpactAdjustment: `-${((1 - gradualStrategy.priceImpactMultiplier) * 100).toFixed(0)}% vs base`,
+        executionRisk: 'Lower, well distributed',
+        bestFor: 'Large mergers, price-sensitive situations'
+      },
+      
+      metrics: {
+        batchesPerDay: 1.0,
+        consistencyScore: '100% - equal batches',
+        marketAbsorption: 'Excellent'
+      },
+      
+      risks: [{
+        type: 'extended_timeline',
+        severity: 'low',
+        description: 'Extended execution may face changing market conditions',
+        mitigation: 'Monitor and adjust if volatility increases'
+      }]
+    });
+    
+    // 3. Dynamic Execution (if high volatility)
+    if (avgVolatility > 0.5) {
+      const dynamicStrategy = this.getDynamicExecutionStrategy();
+      variations.push({
+        id: `scenario-dynamic-execution-${Date.now()}`,
+        type: 'execution_strategy',
+        priority: 'high',
+        title: 'Dynamic Execution (Adaptive)',
+        description: 'Batch size adjusts to maintain 2% target impact',
+        
+        simulationParams: {
+          numberOfBatches: '500-1500 (adaptive)',
+          targetImpact: '2% per batch',
+          adjustmentLogic: '3-10% of remaining based on impact',
+          volatilityMultiplier: avgVolatility > 0.5 ? 1.5 : 1.0
+        },
+        
+        expectedOutcomes: {
+          completionTime: dynamicStrategy.estimateCompletion(avgVolatility),
+          impactControl: 'Maintains consistent 2% target',
+          executionRisk: 'Managed dynamically',
+          bestFor: 'Volatile markets, uncertain conditions'
+        },
+        
+        metrics: {
+          adaptability: 'High',
+          targetImpactMaintenance: '±0.5% of target',
+          responseToVolatility: 'Automatic adjustment'
+        },
+        
+        risks: [{
+          type: 'complexity',
+          severity: 'low',
+          description: 'Requires active monitoring and adjustment',
+          mitigation: 'Automated adjustment logic minimizes manual intervention'
+        }]
+      });
+    }
+    
     return variations;
   }
 
@@ -333,112 +494,130 @@ export class MergerRecommendations {
         return [];
       }
 
-      // Extract data from mergerConfig with defensive checks
-      const collateralA = mergerConfig.swapConfiguration?.collateral?.daoA?.usdcRequired || 0;
-      const collateralB = mergerConfig.swapConfiguration?.collateral?.daoB?.usdcRequired || 0;
-      const ltv = mergerConfig.vaultConfiguration?.crossCollateralization?.ltv || 0.85;
-      const liquidationLTV = mergerConfig.vaultConfiguration?.crossCollateralization?.liquidationLTV || 0.9;
-    
-    // Extract swap sizes and other data from mergerConfig
-    const swapSizeA = mergerConfig.swapConfiguration?.sizes?.tokenAAmount || 0;
-    const swapSizeB = mergerConfig.swapConfiguration?.sizes?.tokenBAmount || 0;
-    const percentageA = mergerConfig.swapConfiguration?.sizes?.percentageA || 0;
-    const percentageB = mergerConfig.swapConfiguration?.sizes?.percentageB || 0;
-    
-    // Extract AMM parameters
-    const concentrationX = (mergerConfig.swapConfiguration?.ammParameters?.concentrationX || 0) / 1e18;
-    const concentrationY = (mergerConfig.swapConfiguration?.ammParameters?.concentrationY || 0) / 1e18;
-    const fee = (mergerConfig.swapConfiguration?.ammParameters?.fee || 0) / 1e18;
-    const equilibriumReserve0 = mergerConfig.swapConfiguration?.ammParameters?.equilibriumReserve0 || 0;
-    const equilibriumReserve1 = mergerConfig.swapConfiguration?.ammParameters?.equilibriumReserve1 || 0;
-    
-    // Extract vault data
-    const borrowAPR = mergerConfig.vaultConfiguration?.usdc?.borrowAPR || 0;
-    const vaultCash = mergerConfig.vaultConfiguration?.usdc?.cash || 0;
-    const crossDepositMultiplier = mergerConfig.vaultConfiguration?.crossCollateralization?.crossDepositMultiplier || 2;
-
-    const steps = [
-      {
-        id: 'collateral-setup',
-        name: 'USDC Collateral Deployment',
-        description: 'Both DAOs deposit USDC into Euler vaults as collateral',
-        details: [
-          `DAO A deposits ${this.formatNumber(collateralA)} USDC`,
-          `DAO B deposits ${this.formatNumber(collateralB)} USDC`,
-          `Target LTV: ${(ltv * 100).toFixed(0)}%`,
-          `Liquidation buffer: ${((liquidationLTV - ltv) * 100).toFixed(0)}%`
-        ],
-        duration: '10 minutes',
-        status: 'pending'
-      },
-      {
-        id: 'borrow-native-tokens',
-        name: 'Cross-Collateralized Borrowing',
-        description: 'Borrow native tokens using USDC collateral positions',
-        details: [
-          `DAO A borrows ${this.formatNumber(swapSizeB)} Token B`,
-          `DAO B borrows ${this.formatNumber(swapSizeA)} Token A`,
-          `Borrow APR: ${borrowAPR.toFixed(2)}%`,
-          `Available liquidity: $${(vaultCash / 1e6).toFixed(1)}M`
-        ],
-        duration: '5 minutes',
-        status: 'pending'
-      },
-      {
-        id: 'deploy-eulerswap',
-        name: 'Initialize EulerSwap Curve',
-        description: 'Deploy concentrated liquidity curve with optimal parameters',
-        details: [
-          `Concentration X: ${concentrationX.toFixed(2)}`,
-          `Concentration Y: ${concentrationY.toFixed(2)}`,
-          `Fee tier: ${(fee * 100).toFixed(2)}%`,
-          `Virtual reserves: ${this.formatNumber(equilibriumReserve0)} / ${this.formatNumber(equilibriumReserve1)}`
-        ],
-        duration: '5 minutes',
-        status: 'pending'
-      },
-      {
-        id: 'execute-swaps',
-        name: 'Execute Cross-Deposit Swaps',
-        description: 'Perform token swaps with automatic vault deposits',
-        details: [
-          `Swap ${percentageA.toFixed(1)}% of DAO A treasury`,
-          `Swap ${percentageB.toFixed(1)}% of DAO B treasury`,
-          `Each swap deposits tokens in opposite vault`,
-          `Creates ${crossDepositMultiplier}x liquidity multiplier`
-        ],
-        duration: '15 minutes',
-        status: 'pending'
-      },
-      {
-        id: 'monitor-positions',
-        name: 'Position Monitoring & Rebalancing',
-        description: 'Track collateral health and rebalance if needed',
-        details: [
-          `Monitor LTV ratio (current: ${(ltv * 100).toFixed(0)}%)`,
-          `Track vault utilization impact`,
-          `Adjust positions if market moves >5%`,
-          `Emergency unwinding available if needed`
-        ],
-        duration: 'Ongoing',
-        status: 'pending'
-      },
-      {
-        id: 'completion-verification',
-        name: 'Verify Merger Completion',
-        description: 'Confirm final positions and treasury diversification',
-        details: [
-          `DAO A holds ${this.formatNumber(swapSizeB)} of DAO B tokens`,
-          `DAO B holds ${this.formatNumber(swapSizeA)} of DAO A tokens`,
-          `Capital efficiency achieved: ${mergerConfig.capitalEfficiency?.leverageMultiple || 'N/A'}x`,
-          `Total value swapped: $${this.formatNumber((swapSizeA + swapSizeB) || 0)}`
-        ],
-        duration: '5 minutes',
-        status: 'pending'
+      // Extract data from mergerConfig
+      const { swapConfiguration, vaultConfiguration, mergerMetrics } = mergerConfig;
+      const fundingRequired = mergerMetrics.requiredMint || vaultConfiguration.fundingStrategy.totalRequired;
+      const survivingToken = swapConfiguration.survivingToken;
+      const phasedOutToken = swapConfiguration.phasedOutToken;
+      
+      // Extract AMM parameters
+      const concentrationX = (swapConfiguration.ammParameters.concentrationX || 0) / 1e18;
+      const concentrationY = (swapConfiguration.ammParameters.concentrationY || 0) / 1e18;
+      const fee = (swapConfiguration.ammParameters.fee || 0) / 1e18;
+      const equilibriumReserve0 = swapConfiguration.ammParameters.equilibriumReserve0 || 0;
+      const equilibriumReserve1 = swapConfiguration.ammParameters.equilibriumReserve1 || 0;
+      
+      // Determine execution strategy from recommendation or config
+      const executionType = recommendation.simulationParams?.numberOfBatches || 
+                           mergerConfig.numberOfBatches || 
+                           20;
+      let batchDetails;
+      if (executionType === 500) {
+        batchDetails = 'Rapid execution (500 batches)';
+      } else if (executionType === 1000) {
+        batchDetails = 'Gradual execution (1000 batches)';
+      } else if (typeof executionType === 'number') {
+        batchDetails = `${executionType} equal batches`;
+      } else {
+        batchDetails = 'Adaptive batching (10-30 batches)';
       }
-    ];
 
-    return steps;
+      const steps = [
+        {
+          id: 'governance-approval',
+          name: 'Governance Approval',
+          description: `${survivingToken} DAO approves token minting for vault funding`,
+          details: [
+            `Proposal: Mint ${this.formatNumber(fundingRequired)} ${survivingToken} tokens`,
+            `Dilution impact: ${mergerMetrics.dilutionPercentage.toFixed(1)}%`,
+            `Purpose: Fund vault for ${phasedOutToken} merger`,
+            `Expected timeline: 3-7 days for vote`
+          ],
+          duration: '3-7 days',
+          status: 'pending'
+        },
+        {
+          id: 'vault-deployment',
+          name: 'Deploy Euler Vaults',
+          description: 'Deploy vaults for both tokens with asymmetric configuration',
+          details: [
+            `${phasedOutToken} vault: Zero interest rate (0% IRM)`,
+            `${survivingToken} vault: Dynamic IRM (0-4% base, kink at 80%)`,
+            `Supply caps: ${formatCapValue(decodeAmountCap(0xFFFF))}`,
+            `Borrow caps: ${formatCapValue(decodeAmountCap(0xFFFF))}`
+          ],
+          duration: '30 minutes',
+          status: 'pending'
+        },
+        {
+          id: 'vault-funding',
+          name: `Fund ${survivingToken} Vault`,
+          description: 'Mint and deposit tokens into surviving token vault',
+          details: [
+            `Mint ${this.formatNumber(fundingRequired)} ${survivingToken} tokens`,
+            `Deposit into ${survivingToken} vault`,
+            `Creates borrowable liquidity for JIT swaps`,
+            `No funding needed for ${phasedOutToken} vault`
+          ],
+          duration: '1 hour',
+          status: 'pending'
+        },
+        {
+          id: 'deploy-eulerswap',
+          name: 'Initialize One-Sided EulerSwap Pool',
+          description: 'Deploy asymmetric curve for unidirectional swaps',
+          details: [
+            `Concentration X: ${concentrationX.toFixed(2)} (${phasedOutToken})`,
+            `Concentration Y: ${concentrationY.toFixed(2)} (${survivingToken})`,
+            `Fee tier: ${(fee * 100).toFixed(2)}%`,
+            `Initial reserves: 0 / ${this.formatNumber(equilibriumReserve1)}`,
+            `One-sided: ${phasedOutToken} → ${survivingToken} only`
+          ],
+          duration: '15 minutes',
+          status: 'pending'
+        },
+        {
+          id: 'execute-batch-swaps',
+          name: 'Execute Merger Swaps',
+          description: `Batch execution strategy: ${batchDetails}`,
+          details: [
+            `Total amount: ${this.formatNumber(mergerMetrics.requiredMint)} ${phasedOutToken}`,
+            `Price impact: Calculated during execution`,
+            `Execution timeline: ${recommendation.expectedOutcomes?.completionTime?.realistic || '10-20'} days`,
+            `JIT borrowing from ${survivingToken} vault per swap`
+          ],
+          duration: `${recommendation.expectedOutcomes?.completionTime?.realistic || '10-20'} days`,
+          status: 'pending'
+        },
+        {
+          id: 'price-discovery-monitoring',
+          name: 'Monitor Price Discovery',
+          description: 'Track price evolution and discovery efficiency',
+          details: [
+            `Discovery type: ${recommendation.title || 'Gradual Discovery'}`,
+            `Expected efficiency: ${recommendation.simulationParams?.discoveryEfficiency ? (recommendation.simulationParams.discoveryEfficiency * 100).toFixed(0) + '%' : '70%'}`,
+            `Monitor batch impacts vs targets`,
+            `Adjust execution if needed`
+          ],
+          duration: 'Throughout execution',
+          status: 'pending'
+        },
+        {
+          id: 'completion-verification',
+          name: 'Verify Merger Completion',
+          description: 'Confirm final token distributions',
+          details: [
+            `${phasedOutToken} holders: Now own ${survivingToken}`,
+            `${survivingToken} holders: ${mergerMetrics.dilutionPercentage.toFixed(1)}% diluted`,
+            `Final price discovery: Market-determined`,
+            `Total value merged: $${this.formatNumber(mergerMetrics.totalValueUSD)}`
+          ],
+          duration: '1 hour',
+          status: 'pending'
+        }
+      ];
+
+      return steps;
     
     } catch (error) {
       console.error('Error generating simulation steps:', error);
@@ -455,12 +634,12 @@ export class MergerRecommendations {
     }
 
     const lowercaseQuery = query.toLowerCase();
-    const { prices, treasuries, vaults, mergerConfiguration, selectedDaoA, selectedDaoB } = context;
+    const { prices, circulationData, mergerConfiguration, selectedDaoA, selectedDaoB } = context;
 
     // Handle queries based on available data
     if (this.containsKeywords(lowercaseQuery, ['how', 'work', 'explain', 'what is'])) {
-      if (lowercaseQuery.includes('cross') || lowercaseQuery.includes('collateral')) {
-        return this.explainCrossCollateralization();
+      if (lowercaseQuery.includes('one') || lowercaseQuery.includes('sided') || lowercaseQuery.includes('jit')) {
+        return this.explainOneSidedJIT();
       }
       if (lowercaseQuery.includes('euler') || lowercaseQuery.includes('swap')) {
         return this.explainEulerSwapMechanism();
@@ -470,36 +649,34 @@ export class MergerRecommendations {
     // Queries requiring DAO selection
     if (this.containsKeywords(lowercaseQuery, ['merger', 'merge', 'feasibility', 'simulate'])) {
       if (!selectedDaoA || !selectedDaoB) {
-        return `${this.personality.insights[0]} To analyze merger feasibility, please select two DAOs from our tracked list. I have data on ${treasuries?.length || 0} DAOs with treasury information available.`;
+        return `${this.personality.insights[0]} To analyze merger feasibility, please select two DAOs from our tracked list. I have data on ${circulationData?.length || 0} tokens with circulation data available.`;
       }
       if (!mergerConfiguration) {
-        return `${this.personality.insights[1]} Calculating merger configuration for ${selectedDaoA.symbol} and ${selectedDaoB.symbol}. This analysis will include feasibility scoring, optimal swap parameters, and capital efficiency projections.`;
+        return `${this.personality.insights[1]} Calculating merger configuration for ${selectedDaoA.symbol} and ${selectedDaoB.symbol}. This analysis will include feasibility scoring, optimal swap parameters, and price discovery scenarios.`;
       }
       return this.analyzeMergerFeasibility(mergerConfiguration, selectedDaoA, selectedDaoB);
     }
 
-    // Treasury analysis (can work with general data)
-    if (this.containsKeywords(lowercaseQuery, ['treasury', 'treasuries', 'holdings'])) {
-      if (!treasuries || treasuries.length === 0) {
-        return `${this.personality.insights[2]} Treasury data is being loaded. Please ensure the backend service is running and connected to DeFiLlama.`;
+    // Circulation analysis (can work with general data)
+    if (this.containsKeywords(lowercaseQuery, ['circulation', 'supply', 'market', 'tokens'])) {
+      const circulation = context.circulation || circulationData;
+      if (!circulation || circulation.length === 0) {
+        return `${this.personality.insights[2]} Token circulation data is being loaded. Please ensure the backend service is running.`;
       }
-      return this.analyzeTreasuryLandscape(treasuries);
+      return this.analyzeTokenLandscape(circulation);
     }
 
-    // Vault status (can work with general data)
+    // Vault questions - explain that vaults are deployed per-merger
     if (this.containsKeywords(lowercaseQuery, ['vault', 'liquidity', 'available', 'capacity'])) {
-      if (!vaults) {
-        return `${this.personality.insights[3]} Euler vault data is being fetched. This will show USDC availability for collateralized borrowing.`;
-      }
-      return this.analyzeVaultStatus(vaults);
+      return `${this.personality.insights[3]} In the one-sided JIT model, vaults are deployed specifically for each merger. The surviving token's DAO must deploy and fund a vault with sufficient tokens before merger execution. No pre-existing vaults are used.`;
     }
 
-    // Capital efficiency questions
-    if (this.containsKeywords(lowercaseQuery, ['efficiency', 'capital', 'leverage'])) {
+    // Price discovery questions
+    if (this.containsKeywords(lowercaseQuery, ['price', 'discovery', 'impact', 'concentration'])) {
       if (mergerConfiguration) {
-        return this.explainCapitalEfficiency(mergerConfiguration);
+        return this.explainPriceDiscovery(mergerConfiguration);
       }
-      return this.explainGeneralCapitalEfficiency();
+      return this.explainGeneralPriceDiscovery();
     }
 
     // Risk analysis
@@ -516,31 +693,31 @@ export class MergerRecommendations {
     }
 
     // Default response
-    return `${this.generateGreeting()} I can help you analyze DAO mergers using EulerSwap's capital-efficient mechanisms. You can ask about:
-- Treasury compositions and merger feasibility
-- Cross-collateralization mechanics
-- Capital efficiency calculations
-- Risk assessments
-- Current vault liquidity
+    return `${this.generateGreeting()} I can help you analyze DAO mergers using EulerSwap's one-sided JIT liquidity model. You can ask about:
+- Token circulation and merger feasibility
+- One-sided JIT liquidity mechanics
+- Price discovery and concentration parameters
+- Batch execution strategies
+- Risk assessments and timeline planning
 
-${treasuries?.length > 0 ? `I have data on ${treasuries.length} DAOs ready for analysis.` : 'Treasury data is loading...'}`;
+${circulationData?.length > 0 ? `I have data on ${circulationData.length} DAO tokens ready for analysis.` : 'Token data is loading...'}`;
   }
 
   // Helper methods for responses
 
-  explainCrossCollateralization() {
-    return `${this.personality.insights[0]} Cross-collateralization in EulerSwap enables unprecedented capital efficiency:
+  explainOneSidedJIT() {
+    return `${this.personality.insights[0]} One-sided JIT liquidity in EulerSwap revolutionizes DAO mergers:
 
 **How It Works:**
-1. **USDC as Universal Collateral**: Both DAOs deposit stablecoins (USDC) into Euler vaults
-2. **Cross-Vault Borrowing**: Native token vaults accept USDC positions as collateral at 85-90% LTV
-3. **Bidirectional Flow**: 
-   - DAO A uses USDC collateral → borrows DAO B tokens
-   - DAO B uses USDC collateral → borrows DAO A tokens
-4. **Swap Execution**: Borrowed tokens are swapped via concentrated AMM
-5. **Cross-Deposits**: Each swap deposits tokens in the opposite vault
+1. **Single-Sided Funding**: Only the surviving DAO pre-funds their vault with minted tokens
+2. **Asymmetric Pool**: Phased-out token can only swap TO surviving token (not vice versa)
+3. **JIT Borrowing**: Each swap borrows surviving tokens from vault on-demand
+4. **Natural Price Discovery**: 
+   - Low concentration for phased-out token (0.25-0.5)
+   - High concentration for surviving token (0.75-0.95)
+5. **Market-Driven Exit**: One-way swaps create natural selling pressure
 
-**Key Efficiency Gain**: Each swap increases the borrowable liquidity in both vaults, creating a self-reinforcing cycle that achieves 5-7x capital efficiency versus traditional AMMs.`;
+**Key Innovation**: No bilateral funding needed - phased-out token holders can exit to surviving token through natural market dynamics.`;
   }
 
   explainEulerSwapMechanism() {
@@ -551,13 +728,13 @@ ${treasuries?.length > 0 ? `I have data on ${treasuries.length} DAOs ready for a
 **Mechanism:**
 1. **No Pre-Funded Pools**: Liquidity providers deposit in Euler vaults, earning yield
 2. **JIT Borrowing**: When swaps occur, the AMM borrows needed tokens
-3. **Concentrated Curves**: Uses Uniswap v3-style concentration for efficiency
+3. **Concentrated Curves**: Uses Uniswap v3-style concentration for precise price discovery
 4. **Automatic Repayment**: Swap output repays the borrow instantly
 
-**For DAO Mergers**: This enables massive treasury swaps without requiring billions in locked liquidity. The 5-7x efficiency comes from:
-- Only needing 10-20% collateral vs 100% in traditional AMMs
-- Cross-deposits multiplying available liquidity
-- Borrowed liquidity earning yield when not in use`;
+**For DAO Mergers**: This enables massive token swaps through:
+- One-sided liquidity provision (only surviving token needs funding)
+- JIT borrowing reduces capital requirements
+- Dynamic price discovery through concentrated AMM curves`;
   }
 
   analyzeMergerFeasibility(config, daoA, daoB) {
@@ -567,105 +744,95 @@ ${treasuries?.length > 0 ? `I have data on ${treasuries.length} DAOs ready for a
 **Merger Type**: ${config.mergerType.replace('_', ' ').toUpperCase()}
 
 **Optimal Configuration**:
-• Swap Size: ${(config.swapConfiguration.sizes.percentageA).toFixed(1)}% of each treasury
+• Swap Size: ${(config.swapConfiguration.sizes.percentageA).toFixed(1)}% of circulating supply
 • ${daoA.symbol}: ${this.formatNumber(config.swapConfiguration.sizes.tokenAAmount)} tokens ($${this.formatNumber(config.swapConfiguration.sizes.tokenAAmount * daoA.price)})
 • ${daoB.symbol}: ${this.formatNumber(config.swapConfiguration.sizes.tokenBAmount)} tokens ($${this.formatNumber(config.swapConfiguration.sizes.tokenBAmount * daoB.price)})
 
 **Capital Requirements**:
-• Total USDC Collateral: $${this.formatNumber(config.swapConfiguration.collateral.daoA.usdcRequired + config.swapConfiguration.collateral.daoB.usdcRequired)}
-• Efficiency vs Traditional AMM: ${config.capitalEfficiency.leverageMultiple}x
-• Cross-Deposit Multiplier: ${config.vaultConfiguration.crossCollateralization.crossDepositMultiplier}x
+• Required Mint Amount: ${this.formatNumber(config.requiredMint)} ${daoB.symbol} tokens
+• Dilution Impact: ${config.dilutionPercentage?.toFixed(2) || '0.00'}%
+• Model: One-sided JIT liquidity (surviving token only)
 
 **Risk Assessment**: ${config.risks.filter(r => r.severity === 'high').length} high-risk factors
 ${config.feasibility.recommendation}`;
   }
 
-  analyzeTreasuryLandscape(treasuries) {
-    const totalTVL = treasuries.reduce((sum, dao) => sum + (dao.tvl || 0), 0);
-    const totalStables = treasuries.reduce((sum, dao) => sum + (dao.stablecoins || 0), 0);
-    const mergerCandidates = treasuries.filter(dao => dao.stablecoins > 10000000); // >$10M USDC
+  analyzeTokenLandscape(circulation) {
+    const totalMarketCap = circulation.reduce((sum, token) => sum + (token.marketCap || 0), 0);
+    const avgSupply = circulation.reduce((sum, token) => sum + (token.circulatingSupply || 0), 0) / circulation.length;
+    const largeCapTokens = circulation.filter(token => token.marketCap > 100000000); // >$100M
 
-    return `${this.personality.insights[2]} DAO Treasury Landscape:
+    return `${this.personality.insights[2]} DAO Token Landscape:
 
 **Overview**:
-• Total Value Locked: $${(totalTVL / 1e9).toFixed(1)}B across ${treasuries.length} DAOs
-• Stablecoin Holdings: $${(totalStables / 1e9).toFixed(1)}B (${((totalStables/totalTVL) * 100).toFixed(1)}% of total)
-• Merger-Ready DAOs: ${mergerCandidates.length} with >$10M USDC
+• Total Market Cap: $${(totalMarketCap / 1e9).toFixed(1)}B across ${circulation.length} tokens
+• Average Circulating Supply: ${(avgSupply / 1e6).toFixed(1)}M tokens
+• Large-Cap DAOs: ${largeCapTokens.length} with >$100M market cap
 
-**Top 5 by Treasury Size**:
-${treasuries.sort((a, b) => (b.tvl || 0) - (a.tvl || 0)).slice(0, 5).map((dao, i) => 
-  `${i + 1}. ${dao.name}: $${((dao.tvl || 0) / 1e6).toFixed(0)}M (${((dao.stablecoins || 0) / 1e6).toFixed(0)}M USDC)`
+**Top 5 by Market Cap**:
+${circulation.sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0)).slice(0, 5).map((token, i) => 
+  `${i + 1}. ${token.symbol}: $${((token.marketCap || 0) / 1e6).toFixed(0)}M (${((token.circulatingSupply || 0) / 1e6).toFixed(0)}M supply)`
 ).join('\n')}
 
-**Optimal Merger Candidates**: DAOs with 20-40% stablecoin ratios have ideal collateral for EulerSwap mergers.`;
+**Merger Suitability**: Tokens with similar market caps (0.5-2x ratio) and moderate supplies are ideal for one-sided JIT mergers.`;
   }
 
-  analyzeVaultStatus(vaultData) {
-    const availableLiquidity = vaultData.cash || (vaultData.totalAssets - vaultData.totalBorrows);
-    const utilization = vaultData.utilization || 0;
+
+  explainPriceDiscovery(config) {
+    const priceImpact = config.mergerMetrics?.priceImpact?.total || 5;
+    const concentrationX = (config.swapConfiguration.ammParameters.concentrationX / 1e18).toFixed(2);
+    const concentrationY = (config.swapConfiguration.ammParameters.concentrationY / 1e18).toFixed(2);
     
-    return `${this.personality.insights[3]} Euler USDC Vault Status:
+    return `${this.personality.confidence_phrases[0]} price discovery mechanics for this merger:
 
-**Current Metrics**:
-• Total Assets: $${(vaultData.totalAssets / 1e6).toFixed(1)}M
-• Available to Borrow: $${(availableLiquidity / 1e6).toFixed(1)}M
-• Utilization: ${(utilization * 100).toFixed(1)}%
-• Borrow APR: ${vaultData.borrowAPR?.toFixed(2) || 'N/A'}%
+**Asymmetric Concentration Parameters**:
+• ${config.swapConfiguration.phasedOutToken}: ${concentrationX} (lower = wider price range)
+• ${config.swapConfiguration.survivingToken}: ${concentrationY} (higher = tighter liquidity)
 
-**Merger Capacity**:
-• Single Merger Limit: $${(availableLiquidity * 0.1 / 1e6).toFixed(1)}M (10% of available)
-• Optimal Utilization Range: 60-80%
-• Current Status: ${utilization > 0.8 ? 'HIGH - costs may increase' : utilization > 0.6 ? 'OPTIMAL' : 'LOW - excellent borrowing conditions'}
+**Price Discovery Dynamics**:
+• Total Expected Impact: ${priceImpact.toFixed(1)}%
+• Discovery Type: ${concentrationX < 0.3 ? 'Wide' : concentrationX < 0.4 ? 'Gradual' : 'Tight'}
+• Market Response: ${concentrationY > 0.9 ? 'Sharp near equilibrium' : 'Smooth transitions'}
 
-${utilization > 0.8 ? '⚠️ High utilization may increase borrowing costs. Consider smaller swaps or wait for better conditions.' : '✅ Good liquidity conditions for merger execution.'}`;
+**How Concentration Affects Price**:
+1. Low concentration (${config.swapConfiguration.phasedOutToken}): Accepts wide price ranges
+2. High concentration (${config.swapConfiguration.survivingToken}): Provides liquidity depth
+3. Asymmetry creates natural discovery pressure
+
+**Batch Impact Breakdown**:
+${config.mergerMetrics?.priceImpact?.breakdown ? 
+  config.mergerMetrics.priceImpact.breakdown.slice(0, 3).map(b => 
+    `• Batch ${b.batch}: ${b.priceImpact.toFixed(2)}% impact`
+  ).join('\n') : '• Impacts calculated per batch based on size'}
+
+**Result**: Market-driven price discovery without artificial constraints.`;
   }
 
-  explainCapitalEfficiency(config) {
-    const traditionalRequired = config.swapConfiguration.sizes.totalValueUSD;
-    const eulerRequired = traditionalRequired / config.capitalEfficiency.leverageMultiple;
-    
-    return `${this.personality.confidence_phrases[0]} capital efficiency analysis for this merger:
+  explainGeneralPriceDiscovery() {
+    return `${this.personality.insights[4]} EulerSwap's price discovery for DAO mergers:
 
-**Traditional AMM Requirements**:
-• Upfront Liquidity: $${this.formatNumber(traditionalRequired)} (100% of swap value)
-• Capital Locked: Indefinitely in LP positions
-• Efficiency: 1.0x baseline
+**Traditional AMM**: Requires deep bilateral liquidity for stable prices
+**EulerSwap One-Sided**: Natural discovery through asymmetric parameters
 
-**EulerSwap Innovation**:
-• Upfront Capital: $${this.formatNumber(eulerRequired)} (${((eulerRequired/traditionalRequired) * 100).toFixed(0)}% of swap value)
-• Efficiency Gain: ${config.capitalEfficiency.leverageMultiple}x
-• Liquidity Source: Borrowed from Euler vaults
-
-**Efficiency Breakdown**:
-1. USDC Collateral at ${(config.vaultConfiguration.crossCollateralization.ltv * 100).toFixed(0)}% LTV
-2. Cross-deposits create ${config.vaultConfiguration.crossCollateralization.crossDepositMultiplier}x multiplier
-3. Total efficiency: ${config.capitalEfficiency.leverageMultiple}x vs traditional
-
-**Result**: Save $${this.formatNumber(traditionalRequired - eulerRequired)} in capital requirements.`;
-  }
-
-  explainGeneralCapitalEfficiency() {
-    return `${this.personality.insights[4]} EulerSwap's capital efficiency for DAO mergers:
-
-**Traditional AMM**: Requires 100% of swap value locked in liquidity pools
-**EulerSwap**: Requires only 15-20% as USDC collateral
-
-**How 5-7x Efficiency is Achieved**:
-1. **Collateralized Borrowing** (3-4x)
-   - 85-90% LTV on USDC means $1 controls $5.7-10 of liquidity
+**How Dynamic Discovery Works**:
+1. **Asymmetric Concentrations**
+   - Phased-out token: 0.25-0.5 (accepts price movement)
+   - Surviving token: 0.75-0.95 (provides stability)
    
-2. **Cross-Deposits** (1.5-2x)
-   - Each swap deposits in opposite vault
-   - Creates borrowable liquidity for future swaps
+2. **One-Way Liquidity**
+   - Only phased-out → surviving swaps allowed
+   - Creates natural selling pressure
+   - Market finds true exchange rate
    
-3. **JIT Liquidity** (1.2x)
-   - No idle capital sitting in pools
-   - All liquidity earns yield until borrowed
+3. **Batch Execution**
+   - 5-30 batches based on strategy
+   - Each batch discovers incremental price
+   - Total impact distributed over time
 
-**Example**: $200M treasury swap
-- Traditional: Need $200M locked liquidity
-- EulerSwap: Need $30-40M USDC collateral
-- Savings: $160-170M capital freed for other uses`;
+**Example**: 100M token merger
+- Tight Discovery: 3-5% total impact, 95% discovery in first 10%
+- Gradual Discovery: 5-8% total impact, smooth transitions
+- Wide Discovery: 8-15% total impact, handles high volatility`;
   }
 
   analyzeSpecificRisks(config) {
@@ -681,69 +848,70 @@ ${highRisks.map(r => `• ${r.type.toUpperCase()}: ${r.description}\n  Mitigatio
 ${mediumRisks.map(r => `• ${r.type}: ${r.description}`).join('\n')}
 
 **Risk Mitigation Framework**:
-1. Conservative LTV (${(config.vaultConfiguration.crossCollateralization.ltv * 100).toFixed(0)}% vs ${(config.vaultConfiguration.crossCollateralization.liquidationLTV * 100).toFixed(0)}% liquidation)
-2. Phased execution over ${config.timeline.total} ${config.timeline.unit}
-3. Real-time monitoring of collateral health
-4. Emergency unwinding procedures ready
+1. Dynamic concentration parameters (${(config.swapConfiguration?.ammParameters?.concentrationX / 1e18 || 0.5).toFixed(2)} / ${(config.swapConfiguration?.ammParameters?.concentrationY / 1e18 || 0.9).toFixed(2)})
+2. Phased execution over ${config.timeline?.total || '7-10'} ${config.timeline?.unit || 'days'}
+3. Real-time monitoring of price impact and dilution
+4. Batch size optimization for minimal market disruption
 
 **Overall Risk Level**: ${highRisks.length === 0 ? 'LOW' : highRisks.length <= 1 ? 'MEDIUM' : 'HIGH'}`;
   }
 
   explainGeneralRisks() {
-    return `${this.personality.insights[1]} Key risks in EulerSwap DAO mergers:
+    return `${this.personality.insights[1]} Key risks in one-sided EulerSwap mergers:
 
-**1. Liquidation Risk** (PRIMARY)
-• Occurs if: Token prices move adversely vs USDC collateral
-• Threshold: 93% LTV (we maintain 85% for safety)
-• Mitigation: 8% buffer + continuous monitoring
+**1. Dilution Risk** (PRIMARY)
+• Surviving DAO must mint tokens upfront
+• Dilution before value realization
+• Mitigation: Clear governance communication
 
-**2. Vault Capacity Risk**
-• Large swaps may exceed available liquidity
-• Check vault utilization before executing
-• Mitigation: Phase swaps or wait for better conditions
+**2. Price Impact Risk**
+• Large batches cause significant slippage
+• Concentration parameters affect severity
+• Mitigation: Optimize batch sizing and timing
 
-**3. Borrowing Cost Risk**
-• High utilization increases borrow APR
-• Can make merger expensive if rates spike
-• Mitigation: Execute when utilization <80%
+**3. Vault Funding Risk**
+• Must pre-fund entire merger amount
+• Opportunity cost of locked capital
+• Mitigation: Efficient execution timeline
 
-**4. Smart Contract Risk**
-• Euler Protocol is audited but risks exist
-• Cross-collateralization adds complexity
-• Mitigation: Start with smaller test swaps
+**4. Discovery Efficiency Risk**
+• Market may not converge to expected price
+• External factors affect discovery
+• Mitigation: Flexible concentration parameters
 
-**5. Correlation Breakdown**
-• Token correlation may change during merger
-• Affects optimal concentration parameters
-• Mitigation: Wider concentration bands for safety`;
+**5. Execution Timeline Risk**
+• Extended timelines face market changes
+• Governance delays compound risk
+• Mitigation: Clear roadmap and contingencies`;
   }
 
   generateStatusReport(context) {
-    const { prices, treasuries, vaults, aiModules: modules } = context;
+    const { aiModules: modules, selectedDaoA, selectedDaoB, mergerConfiguration } = context;
+    const circulation = context.circulation || circulationData;
+    const prices = marketData;
     
     return `${this.personality.greetings[1]} System Status Report:
 
 **Data Collection**:
 • Price Feeds: ${prices?.length || 0} tokens tracked
-• Treasury Data: ${treasuries?.length || 0} DAOs monitored
-• Vault Status: ${vaults ? 'CONNECTED' : 'LOADING'}
+• Circulation Data: ${circulation?.length || 0} tokens monitored
 
 **AI Modules**:
-${modules ? Object.entries(modules).map(([key, module]) => 
+${modules ? Object.entries(modules).map(([, module]) => 
   `• ${module.name}: ${module.status.toUpperCase()} (${module.confidence}% confidence)`
 ).join('\n') : 'Loading...'}
 
-**Vault Liquidity**:
-${vaults ? `• Available: $${((vaults.cash || 0) / 1e6).toFixed(1)}M
-• Utilization: ${((vaults.utilization || 0) * 100).toFixed(1)}%
-• Borrow APR: ${(vaults.borrowAPR || 0).toFixed(2)}%` : 'Fetching...'}
+**Merger Analysis**:
+• Current Pair: ${selectedDaoA && selectedDaoB ? `${selectedDaoA.symbol}-${selectedDaoB.symbol}` : 'None selected'}
+• Configuration: ${mergerConfiguration ? 'Calculated' : 'Not analyzed'}
+• Model: One-sided JIT liquidity
 
 **Recent Activity**:
 ${liveEvents.slice(0, 3).map(event => 
   `• ${event.title} (${this.getTimeAgo(event.timestamp)})`
 ).join('\n')}
 
-Ready to analyze DAO merger opportunities with ${this.personality.confidence_phrases[4]} 5-7x capital efficiency.`;
+Ready to analyze one-sided JIT merger opportunities with dynamic price discovery.`;
   }
 
   // Utility methods
@@ -753,6 +921,7 @@ Ready to analyze DAO merger opportunities with ${this.personality.confidence_phr
   }
 
   formatNumber(num) {
+    if (num === null || num === undefined || isNaN(num)) return '0';
     if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
     if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
     if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
@@ -768,5 +937,156 @@ Ready to analyze DAO merger opportunities with ${this.personality.confidence_phr
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
     return `${Math.floor(diff / 86400000)}d ago`;
+  }
+
+  // Price Discovery Scenario Calculations
+  
+  calculateTightDiscoveryImpact(swapSize, totalSupply, equilibriumReserve1) {
+    // With high concentrationY (0.95), the curve is very flat near equilibrium
+    const equilibriumZone = equilibriumReserve1 * 0.05;
+    
+    if (swapSize <= equilibriumZone) {
+      // Within tight band: impact ≈ 0.1-0.5%
+      return swapSize / totalSupply * 0.1;
+    } else {
+      // Outside band: impact accelerates rapidly
+      const excess = (swapSize - equilibriumZone) / equilibriumZone;
+      return 0.5 + (excess * excess * 5); // Quadratic increase
+    }
+  }
+  
+  calculateGradualDiscoveryImpact(swapSize, totalSupply, totalSwapAmount) {
+    // More linear price impact with moderate concentrations
+    const baseImpact = (swapSize / totalSupply) * 2.5;
+    
+    // Smoothing factor based on swap progress
+    const progress = swapSize / totalSwapAmount;
+    const smoothingFactor = 1 + (progress * 0.3);
+    
+    return baseImpact * smoothingFactor;
+  }
+  
+  calculateWideDiscoveryImpact(swapSize, totalSupply) {
+    // Nearly constant impact rate for low concentrations
+    const constantImpact = 3.5; // percentage
+    const sizeMultiplier = swapSize / totalSupply;
+    
+    return constantImpact * sizeMultiplier;
+  }
+  
+  // Execution Strategy Calculations
+  
+  getRapidExecutionStrategy() {
+    return {
+      batches: 500,
+      
+      calculateBatchSizes: (totalAmount) => {
+        // Front-loaded distribution across 500 batches
+        // First 100: 0.3% each (30% total)
+        // Next 100: 0.25% each (25% total)
+        // Next 100: 0.2% each (20% total)
+        // Next 100: 0.15% each (15% total)
+        // Last 100: 0.1% each (10% total)
+        const batchSizes = [];
+        
+        for (let i = 0; i < 100; i++) batchSizes.push(totalAmount * 0.003);   // 30%
+        for (let i = 0; i < 100; i++) batchSizes.push(totalAmount * 0.0025);  // 25%
+        for (let i = 0; i < 100; i++) batchSizes.push(totalAmount * 0.002);   // 20%
+        for (let i = 0; i < 100; i++) batchSizes.push(totalAmount * 0.0015);  // 15%
+        for (let i = 0; i < 100; i++) batchSizes.push(totalAmount * 0.001);   // 10%
+        
+        return batchSizes;
+      },
+      
+      estimateCompletion: () => ({
+        optimistic: 3,
+        realistic: 5,
+        conservative: 7
+      }),
+      
+      priceImpactMultiplier: 1.1 // Lower multiplier due to smaller batches
+    };
+  }
+  
+  getGradualExecutionStrategy() {
+    return {
+      batches: 1000,
+      
+      calculateBatchSizes: (totalAmount) => {
+        const batchSize = totalAmount / 1000;
+        return Array(1000).fill(batchSize);
+      },
+      
+      estimateCompletion: () => ({
+        optimistic: 10,
+        realistic: 20,
+        conservative: 30
+      }),
+      
+      priceImpactMultiplier: 0.5 // Much lower due to tiny batches
+    };
+  }
+  
+  getDynamicExecutionStrategy() {
+    return {
+      batches: 'adaptive',
+      
+      calculateNextBatch: (remainingAmount, currentImpact, targetImpact = 2.0) => {
+        if (currentImpact > targetImpact) {
+          return remainingAmount * 0.03;
+        } else if (currentImpact < targetImpact * 0.5) {
+          return remainingAmount * 0.1;
+        } else {
+          return remainingAmount * 0.05;
+        }
+      },
+      
+      estimateCompletion: (volatility) => {
+        const volatilityFactor = volatility > 0.5 ? 1.5 : 1.0;
+        return {
+          optimistic: 7 * volatilityFactor,
+          realistic: 15 * volatilityFactor,
+          conservative: 25 * volatilityFactor
+        };
+      }
+    };
+  }
+  
+  // Analysis Functions
+  
+  measureDiscoveryEfficiency(executedSwaps, totalSwaps, currentPrice, targetPrice) {
+    const progress = executedSwaps / totalSwaps;
+    const priceConvergence = currentPrice / targetPrice;
+    
+    return {
+      swapProgress: progress * 100,
+      priceConvergence: priceConvergence * 100,
+      efficiency: (priceConvergence / progress) * 100
+    };
+  }
+  
+  analyzeBatchImpact(batchSize, totalSupply, scenario = 'gradual') {
+    let impact;
+    
+    switch(scenario) {
+      case 'tight':
+        impact = this.calculateTightDiscoveryImpact(batchSize, totalSupply, totalSupply * 0.1);
+        break;
+      case 'wide':
+        impact = this.calculateWideDiscoveryImpact(batchSize, totalSupply);
+        break;
+      default:
+        impact = this.calculateGradualDiscoveryImpact(batchSize, totalSupply, totalSupply);
+    }
+    
+    const slippageTolerance = 3.0; // 3%
+    
+    return {
+      impact,
+      acceptable: impact < slippageTolerance,
+      suggestedAdjustment: impact > slippageTolerance 
+        ? batchSize * (slippageTolerance / impact)
+        : batchSize
+    };
   }
 }

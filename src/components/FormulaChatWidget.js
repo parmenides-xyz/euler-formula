@@ -5,12 +5,12 @@ import { Send, Mic, MicOff, Brain, User, Minimize2, Maximize2, Expand, Shrink } 
 import { useData } from '../context/DataContext';
 
 const FormulaChatWidget = () => {
-  const { prices, treasuries, vaults, mergerConfiguration } = useData();
+  const { prices, circulationData, getTokenCirculation, mergerConfiguration } = useData();
   const [messages, setMessages] = useState([
     {
       id: 1,
       type: 'ai',
-      content: "Hello! I'm FORMULA, your DAO merger analysis assistant. How can I help you explore capital-efficient merger opportunities using EulerSwap today?",
+      content: "Hello! I'm FORMULA, your DAO merger analysis assistant. How can I help you explore one-sided JIT liquidity mergers using EulerSwap today?",
       timestamp: new Date(),
       confidence: 95
     }
@@ -20,7 +20,7 @@ const FormulaChatWidget = () => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
-  // Data comes from context - prices, treasuries, vaults, mergerConfiguration
+  // Data comes from context - prices, circulation data, mergerConfiguration
   const [isLoading, setIsLoading] = useState(false);
   
   const messagesEndRef = useRef(null);
@@ -194,7 +194,7 @@ const FormulaChatWidget = () => {
               <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-black animate-pulse"></div>
             </div>
             <div>
-              <h3 className="text-white font-medium">FORMULA AI</h3>
+              <h3 className="text-white font-medium">FORMULA</h3>
               <p className="text-white/60 text-xs">Merger Analysis Engine</p>
             </div>
           </div>
@@ -293,7 +293,7 @@ const FormulaChatWidget = () => {
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                  placeholder="Ask Wattson about operations..."
+                  placeholder="Ask FORMULA about DAO mergers..."
                   className="flex-1 bg-white/10 text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 backdrop-blur-sm border border-white/20 placeholder-white/50"
                 />
                 <button

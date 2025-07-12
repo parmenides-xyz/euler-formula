@@ -8,17 +8,28 @@ export const calculateVolatility = (priceHistory) => {
   // Calculate daily returns
   const returns = [];
   for (let i = 1; i < priceHistory.length; i++) {
-    const dailyReturn = (priceHistory[i].value - priceHistory[i-1].value) / priceHistory[i-1].value;
+    const prevValue = priceHistory[i-1].value;
+    const currValue = priceHistory[i].value;
+    
+    // Skip if either value is invalid
+    if (!prevValue || prevValue <= 0 || !currValue || currValue <= 0) {
+      continue;
+    }
+    
+    const dailyReturn = (currValue - prevValue) / prevValue;
     returns.push(dailyReturn);
   }
+  
+  // Need at least 2 returns for meaningful calculation
+  if (returns.length < 2) return 0;
   
   // Calculate standard deviation
   const mean = returns.reduce((sum, r) => sum + r, 0) / returns.length;
   const variance = returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / returns.length;
   const dailyVol = Math.sqrt(variance);
   
-  // Annualize (sqrt(365))
-  return dailyVol * Math.sqrt(365);
+  // Annualize (sqrt(365)) and cap at reasonable max (500% annual volatility)
+  return Math.min(dailyVol * Math.sqrt(365), 5);
 };
 
 // Calculate correlation between two token price histories
@@ -70,55 +81,110 @@ export const calculateAllVolatilities = (pricesData) => {
   return volatilities;
 };
 
-// Categorize volatility levels for concentration parameters and risk assessment
+// Categorize volatility levels for risk assessment
 export const categorizeVolatility = (volatility) => {
   if (volatility < 0.2) return { 
     level: 'low', 
-    concentration: 0.95e18,  // Scale to 1e18 format for EulerSwap
     riskScore: 20,
     swapSizeRecommendation: 'large' // Can do bigger swaps with stable tokens
   };
   if (volatility < 0.5) return { 
     level: 'medium', 
-    concentration: 0.85e18,  // Scale to 1e18 format for EulerSwap
     riskScore: 50,
     swapSizeRecommendation: 'medium'
   };
   return { 
     level: 'high', 
-    concentration: 0.7e18,   // Scale to 1e18 format for EulerSwap
     riskScore: 80,
     swapSizeRecommendation: 'small' // Smaller swaps to minimize price impact
   };
 };
 
-// Get recommended LTV for USDC collateral (always high since USDC is stable)
-export const getUSDCCollateralLTV = () => {
+
+// Calculate asymmetric concentration parameters for one-sided pools
+export const getAsymmetricConcentrations = (marketCapRatio, dilutionPercentage, volatilityA, volatilityB) => {
+  // concentrationX: For phased-out token (0.3-0.5 range)
+  // Lower concentration allows more price discovery for the exiting token
+  let concentrationX;
+  if (marketCapRatio < 0.1) {
+    concentrationX = 0.3; // Very small token, maximum flexibility
+  } else if (marketCapRatio < 1) {
+    concentrationX = 0.4; // Smaller token, good flexibility
+  } else {
+    concentrationX = 0.5; // Larger or equal token, moderate flexibility
+  }
+  
+  // Adjust for volatility - more volatile tokens need lower concentration
+  if (volatilityA > 0.5) {
+    concentrationX *= 0.8; // 20% reduction for high volatility
+  }
+  
+  // concentrationY: For surviving token (0.8-0.95 range)
+  // Higher concentration provides stability for the continuing token
+  let concentrationY;
+  if (dilutionPercentage < 10) {
+    concentrationY = 0.95; // Low dilution, can maintain tight spreads
+  } else if (dilutionPercentage < 30) {
+    concentrationY = 0.9;  // Moderate dilution
+  } else {
+    concentrationY = 0.85; // High dilution, need more flexibility
+  }
+  
+  // Adjust for volatility - more volatile surviving tokens need slightly lower concentration
+  if (volatilityB > 0.5) {
+    concentrationY *= 0.95; // 5% reduction for high volatility
+  }
+  
   return {
-    borrowLTV: 0.9,      // 90% - can borrow up to 90% of USDC value
-    liquidationLTV: 0.93, // 93% - liquidation threshold
-    recommended: 0.85     // 85% - recommended safe operating level
+    concentrationX: Math.floor(concentrationX * 1e18), // Scale to 1e18 format
+    concentrationY: Math.floor(concentrationY * 1e18)  // Scale to 1e18 format
   };
 };
 
-// Helper function to determine concentration parameters based on correlation
-export const getConcentrationFromCorrelation = (correlation) => {
-  // Higher correlation = higher concentration (tighter liquidity)
-  if (Math.abs(correlation) > 0.7) return 0.95e18; // High correlation, scaled for EulerSwap
-  if (Math.abs(correlation) > 0.3) return 0.85e18; // Medium correlation, scaled for EulerSwap
-  return 0.7e18; // Low correlation, scaled for EulerSwap
+// Calculate merger feasibility score (0-100)
+export const calculateMergerFeasibility = (marketCapRatio, dilutionPercentage, priceCorrelation) => {
+  let score = 100;
+  
+  // Market cap ratio component (40% weight)
+  if (marketCapRatio < 0.1 || marketCapRatio > 10) {
+    score -= 40; // Extreme size mismatch
+  } else if (marketCapRatio < 0.5 || marketCapRatio > 2) {
+    score -= 20; // Moderate size mismatch
+  }
+  
+  // Dilution component (40% weight)
+  if (dilutionPercentage > 50) {
+    score -= 40; // Extreme dilution
+  } else if (dilutionPercentage > 30) {
+    score -= 30; // High dilution
+  } else if (dilutionPercentage > 20) {
+    score -= 20; // Moderate dilution
+  } else if (dilutionPercentage > 10) {
+    score -= 10; // Low dilution
+  }
+  
+  // Price correlation component (20% weight)
+  // Higher correlation suggests tokens move together, potentially easier merger
+  if (Math.abs(priceCorrelation) < 0.3) {
+    score -= 20; // Low correlation, different market behaviors
+  } else if (Math.abs(priceCorrelation) < 0.5) {
+    score -= 10; // Moderate correlation
+  }
+  
+  return Math.max(0, score);
 };
 
-// Enhanced correlation-based configuration for EulerSwap
-export const getEulerSwapConcentration = (correlation, volatilityA, volatilityB) => {
-  const avgVolatility = (volatilityA + volatilityB) / 2;
-  const baseConcentration = Math.abs(correlation) > 0.7 ? 0.95e18 : 
-                           Math.abs(correlation) > 0.3 ? 0.85e18 : 0.7e18;
+
+// Calculate vault funding requirements for surviving token
+export const calculateVaultFundingNeeds = (requiredMint, bufferMultiplier = 1.2) => {
+  const fundingNeeded = requiredMint * bufferMultiplier;
   
-  // Reduce concentration for high volatility pairs
-  const volatilityAdjustment = Math.max(0.5, 1 - avgVolatility * 0.3);
-  
-  return Math.floor(baseConcentration * volatilityAdjustment);
+  return {
+    fundingNeeded,
+    requiredMint,
+    bufferAmount: requiredMint * (bufferMultiplier - 1),
+    bufferPercentage: (bufferMultiplier - 1) * 100
+  };
 };
 
 // Helper functions
@@ -156,12 +222,18 @@ export const calculatePriceStats = (priceHistory) => {
 
 // Add price scaling for EulerSwap parameters
 export const scaleForEulerSwap = (priceA, priceB, decimalsA = 18, decimalsB = 18) => {
+  // Validate inputs
+  if (!priceA || !priceB || priceA <= 0 || priceB <= 0) {
+    console.warn('Invalid prices for scaleForEulerSwap:', { priceA, priceB });
+    return { priceX: 1e18, priceY: 1e18 }; // Safe defaults (1:1 ratio)
+  }
+  
   // Account for token decimals and scale to EulerSwap bounds
   const decimalAdjustment = Math.pow(10, decimalsB - decimalsA);
   const rawRatio = (priceB / priceA) * decimalAdjustment;
   
   // Ensure within EulerSwap bounds (1 <= px, py <= 1e25)
-  const priceX = Math.max(1, Math.min(1e25, 1e18)); // Normalized base
+  const priceX = 1e18; // Normalized base price
   const priceY = Math.max(1, Math.min(1e25, Math.floor(rawRatio * 1e18)));
   
   return { priceX, priceY };
@@ -185,41 +257,35 @@ export const calculateSafeReserves = (targetSwapValue, multiplier = 2.5) => {
   return Math.floor(proposedReserve);
 };
 
-// Calculate vault capacity risk for EulerSwap
-export const calculateVaultCapacityRisk = (vaultData, targetSwapSize) => {
-  const availableLiquidity = parseFloat(vaultData.cash || vaultData.totalAssets - vaultData.totalBorrows);
-  const utilizationRate = parseFloat(vaultData.utilization) * 100;
+// Calculate vault capacity risk for surviving token in one-sided JIT model
+export const calculateVaultCapacityRisk = (requiredMint, expectedDailyVolume) => {
+  // In one-sided JIT, the surviving token vault needs to have sufficient capacity
+  // Risk is based on the total required mint vs expected daily swap volume
   
-  // Risk increases with utilization and swap size relative to available liquidity
-  const liquidityRatio = targetSwapSize / availableLiquidity;
-  const utilizationRisk = utilizationRate > 90 ? 'high' : utilizationRate > 70 ? 'medium' : 'low';
-  const capacityRisk = liquidityRatio > 0.5 ? 'high' : liquidityRatio > 0.2 ? 'medium' : 'low';
+  const volumeRatio = expectedDailyVolume / requiredMint;
+  
+  // Determine execution timeline based on volume ratio
+  let executionDays;
+  let capacityRisk;
+  
+  if (volumeRatio > 0.1) {
+    executionDays = Math.ceil(1 / volumeRatio); // Can complete quickly
+    capacityRisk = 'low';
+  } else if (volumeRatio > 0.02) {
+    executionDays = Math.ceil(1 / volumeRatio); // Moderate timeline
+    capacityRisk = 'medium';
+  } else {
+    executionDays = Math.ceil(1 / volumeRatio); // Extended timeline
+    capacityRisk = 'high';
+  }
   
   return {
-    liquidityRatio,
-    utilizationRisk,
+    requiredMint,
+    expectedDailyVolume,
+    volumeRatio,
     capacityRisk,
-    recommendedMaxSwap: availableLiquidity * 0.1 // Conservative 10% of available
+    executionDays,
+    recommendedDailySwaps: Math.min(expectedDailyVolume, requiredMint * 0.05) // Max 5% per day
   };
 };
 
-// Calculate liquidation risk for leveraged positions
-export const calculateLiquidationRisk = (volatility, ltv, collateralValue, debtValue) => {
-  const currentLTV = debtValue / collateralValue;
-  const safetyBuffer = ltv - currentLTV;
-  
-  // Estimate price movement needed to trigger liquidation
-  const liquidationPriceMove = safetyBuffer / currentLTV;
-  
-  // Compare with volatility (daily moves)
-  const riskScore = volatility > liquidationPriceMove ? 'high' : 
-                   volatility > liquidationPriceMove * 0.5 ? 'medium' : 'low';
-  
-  return {
-    currentLTV,
-    safetyBuffer,
-    liquidationPriceMove,
-    riskScore,
-    recommendedMaxLTV: ltv * 0.85 // 15% safety margin
-  };
-};

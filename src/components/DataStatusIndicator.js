@@ -4,7 +4,7 @@ import React from 'react';
 import { useData } from '../context/DataContext';
 
 const DataStatusIndicator = () => {
-  const { loading, error, lastUpdated, prices, treasuries, vaults } = useData();
+  const { loading, error, lastUpdated, prices, circulationData } = useData();
 
   const getStatusColor = () => {
     if (error) return 'text-red-400';
@@ -41,10 +41,9 @@ const DataStatusIndicator = () => {
   const getDataSummary = () => {
     if (!prices || !prices.length) return 'No data';
     
-    const treasuryCount = treasuries ? treasuries.length : 0;
-    const vaultUtilization = vaults ? vaults.utilizationPercent : 0;
+    const circulationCount = circulationData ? Object.keys(circulationData).length : 0;
     
-    return `${prices.length} tokens • ${treasuryCount} DAOs • ${vaultUtilization.toFixed(1)}% vault`;
+    return `${prices.length} tokens • ${circulationCount} with circulation data`;
   };
 
   return (
