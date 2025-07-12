@@ -211,7 +211,7 @@ EulerSwap revolutionizes DAO mergers through asymmetric liquidity provisioning. 
 
 **Just-In-Time Borrowing Mechanism:**
 ```solidity
-// EulerSwap JIT borrowing flow
+// EulerSwap "JIT" borrowing flow
 1. User deposits phased-out tokens as collateral
 2. System calculates borrowing capacity using LTV ratios
 3. Surviving tokens borrowed just-in-time from pre-funded vault
@@ -301,7 +301,7 @@ Unlike fixed-rate swaps, EulerSwap provides dynamic price discovery:
 
 1. **Initial Price**: Based on external market rates and concentration parameters
 2. **Dynamic Adjustment**: Each swap shifts the curve based on volume and concentration
-3. **Impact Calculation**: Real-time tracking of actual vs theoretical impact
+3. **Impact Calculation**: Real-time tracking of actual/theoretical impact
 4. **Concentration Effects**: Higher concentration = tighter pricing, lower slippage
 
 ## API Documentation
@@ -350,13 +350,12 @@ Interactive chat with FORMULA assistant trained on EulerSwap mechanics
 ```
 
 **Response includes EulerSwap-specific context:**
-- One-sided JIT liquidity model explanation
+- One-sided "JIT" liquidity model explanation
 - Dynamic concentration parameter recommendations
 - Vault funding requirements and strategies
-- Capital efficiency calculations (32-40x improvements)
 
 #### `POST /api/analysis`
-Comprehensive DAO merger analysis using EulerSwap parameters
+Comprehensive DAO merger analysis using EulerSwap pool parameters
 ```json
 {
   "mergerContext": {
@@ -395,10 +394,9 @@ Post-execution analysis with EulerSwap metrics
 ```
 
 **Returns EulerSwap-specific metrics:**
-- JIT borrowing volumes and capacity
+- "JIT" borrowing volumes and capacity
 - Vault utilization rates
 - Dynamic price impact progression
-- Capital efficiency achievements
 
 ### Testing Endpoints
 
@@ -413,7 +411,7 @@ Test Anthropic API connection with EulerSwap context
 1. **DAO Selection**: Choose merger pairs with price/supply data
 2. **EulerSwap Configuration**: Calculate optimal concentration parameters and vault requirements
 3. **Interactive Simulation**: Step-by-step execution with real-time EulerSwap price updates
-4. **JIT Borrowing**: Model vault utilization and borrowing capacity
+4. **"JIT" Borrowing**: Model vault utilization and borrowing capacity
 5. **Impact Analysis**: Compare actual execution vs EulerSwap theoretical calculations
 
 ### Frontend Integration Examples
@@ -432,7 +430,7 @@ const config = await fetch('/api/analysis', {
 });
 ```
 
-**Real-time EulerSwap Price Tracking:**
+**Real-time Price Tracking:**
 ```javascript
 // During batch execution simulation
 const priceImpact = (currentPrice - initialPrice) / initialPrice * 100;
@@ -441,10 +439,10 @@ const priceImpact = (currentPrice - initialPrice) / initialPrice * 100;
 
 ## EulerSwap References
 
-- **EulerSwap GitHub**: [https://github.com/euler-xyz/euler-swap](https://github.com/euler-xyz/euler-swap)
+- **Technical Documentation**: [https://github.com/euler-xyz/euler-swap](https://github.com/euler-xyz/euler-swap)
 - **Concentration Mathematics**: Based on EulerSwap's `OneSidedCurve.t.sol` test implementations
 - **Vault Architecture**: Implements EulerSwap's asymmetric vault lending model
-- **JIT Borrowing**: Simulates EulerSwap's `FundsLib.withdrawAssets()` functionality
+- **"JIT" Borrowing**: Simulates EulerSwap's `FundsLib.withdrawAssets()` functionality
 
 ## License
 
