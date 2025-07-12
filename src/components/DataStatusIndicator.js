@@ -43,7 +43,7 @@ const DataStatusIndicator = () => {
     
     const circulationCount = circulationData ? Object.keys(circulationData).length : 0;
     
-    return `${prices.length} tokens • ${circulationCount} with circulation data`;
+    return `${prices.length} tokens • ${circulationCount} with live data`;
   };
 
   return (

@@ -1089,6 +1089,19 @@ const SimulationPage = () => {
         impact: {
           coverage: 'All tracked DAOs',
           efficiency: 'Finding best matches'
+        },
+        details: {
+          system_components_affected: ['Token Price Oracle', 'Treasury Analytics', 'AMM Curve Calculator', 'Market Cap Evaluator'],
+          performance_metrics: [
+            { metric: 'DAOs Analyzed', value: '25 pairs', comment: 'Top liquidity pools' },
+            { metric: 'Processing Time', value: '0.8s', comment: 'Real-time calculation' },
+            { metric: 'Optimal Matches Found', value: '3', comment: 'Based on capital efficiency' }
+          ],
+          next_recommended_actions: [
+            'Select a merger pair to simulate',
+            'Review concentration parameters',
+            'Run batch execution simulation'
+          ]
         }
       },
       'conservative-mode': {
@@ -1097,6 +1110,19 @@ const SimulationPage = () => {
         impact: {
           dilution: 'Minimized',
           priceDiscovery: 'Tight range'
+        },
+        details: {
+          system_components_affected: ['Concentration Parameters', 'Slippage Calculator', 'Risk Assessment Module'],
+          performance_metrics: [
+            { metric: 'Concentration X', value: '0.5', comment: 'Tight liquidity band' },
+            { metric: 'Concentration Y', value: '0.95', comment: 'Maximum stability' },
+            { metric: 'Expected Slippage', value: '<0.5%', comment: 'Within equilibrium zone' }
+          ],
+          next_recommended_actions: [
+            'Run simulation with conservative parameters',
+            'Monitor price impact carefully',
+            'Consider gradual execution (1000 batches)'
+          ]
         }
       },
       'aggressive-mode': {
@@ -1105,6 +1131,19 @@ const SimulationPage = () => {
         impact: {
           dilution: 'Higher acceptance',
           priceDiscovery: 'Wide range'
+        },
+        details: {
+          system_components_affected: ['Concentration Parameters', 'Execution Engine', 'Capital Efficiency Optimizer'],
+          performance_metrics: [
+            { metric: 'Concentration X', value: '0.2', comment: 'Wide liquidity band' },
+            { metric: 'Concentration Y', value: '0.7', comment: 'Balanced approach' },
+            { metric: 'Expected Slippage', value: '2-5%', comment: 'Acceptable for speed' }
+          ],
+          next_recommended_actions: [
+            'Execute rapid batch strategy (500 batches)',
+            'Monitor for arbitrage opportunities',
+            'Prepare for higher volatility'
+          ]
         }
       },
       'refresh-data': {
@@ -1113,6 +1152,19 @@ const SimulationPage = () => {
         impact: {
           accuracy: 'Real-time data',
           coverage: 'All sources synced'
+        },
+        details: {
+          system_components_affected: ['CoinGecko API', 'DeFiLlama Integration', 'Circulation Tracker', 'Price Oracle'],
+          performance_metrics: [
+            { metric: 'Prices Updated', value: '25 tokens', comment: 'From multiple sources' },
+            { metric: 'Data Freshness', value: '<1 min', comment: 'Real-time sync' },
+            { metric: 'API Latency', value: '120ms', comment: 'Optimal performance' }
+          ],
+          next_recommended_actions: [
+            'Review updated token valuations',
+            'Check for new merger opportunities',
+            'Recalculate optimal parameters'
+          ]
         }
       }
     };
@@ -1122,7 +1174,8 @@ const SimulationPage = () => {
       show: true,
       title: actionData.title,
       message: actionData.message,
-      impact: actionData.impact
+      impact: actionData.impact,
+      details: actionData.details
     });
   };
 
@@ -1394,7 +1447,7 @@ const SimulationPage = () => {
                   });
                 }
               }}
-              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:border-blue-500 transition-all"
+              className="w-full px-4 py-3 pr-10 rounded-xl bg-white/5 border border-white/10 text-white focus:border-blue-500 transition-all appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg%20width%3d%2714%27%20height%3d%278%27%20viewBox%3d%270%200%2014%208%27%20xmlns%3d%27http%3a%2f%2fwww.w3.org%2fsvg%27%3e%3cpath%20d%3d%27M1%201l6%206%206-6%27%20stroke%3d%27%23ffffff%27%20stroke-width%3d%271.5%27%20fill%3d%27none%27%20stroke-linecap%3d%27round%27%20stroke-linejoin%3d%27round%27%2f%3e%3c%2fsvg%3e')] bg-[length:12px] bg-[position:right_1rem_center] bg-no-repeat"
             >
               <option value="">Choose a DAO...</option>
               {prices?.map(priceData => {
@@ -1432,7 +1485,7 @@ const SimulationPage = () => {
                   });
                 }
               }}
-              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:border-emerald-500 transition-all"
+              className="w-full px-4 py-3 pr-10 rounded-xl bg-white/5 border border-white/10 text-white focus:border-emerald-500 transition-all appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg%20width%3d%2714%27%20height%3d%278%27%20viewBox%3d%270%200%2014%208%27%20xmlns%3d%27http%3a%2f%2fwww.w3.org%2fsvg%27%3e%3cpath%20d%3d%27M1%201l6%206%206-6%27%20stroke%3d%27%23ffffff%27%20stroke-width%3d%271.5%27%20fill%3d%27none%27%20stroke-linecap%3d%27round%27%20stroke-linejoin%3d%27round%27%2f%3e%3c%2fsvg%3e')] bg-[length:12px] bg-[position:right_1rem_center] bg-no-repeat"
               disabled={!selectedDaoA}
             >
               <option value="">Choose a DAO...</option>

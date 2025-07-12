@@ -187,9 +187,11 @@ const PremiumHomepage = () => {
             <div>✓ One-sided JIT liquidity model initialized</div>
             <div>✓ Token circulation data connected</div>
             <div>✓ Merger simulation engine online</div>
-            <div className="flex items-center">
-              <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse mr-2 ml-1"></div>
-              Calibrating merger simulation algorithms...
+            <div>
+              <span className="inline-block" style={{ width: '0.9em' }}>
+                <span className="inline-block w-2 h-2 bg-blue-400 rounded-full animate-pulse"></span>
+              </span>
+              {' '}Calibrating merger simulation algorithms...
             </div>
           </motion.div>
         </motion.div>

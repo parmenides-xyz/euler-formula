@@ -579,7 +579,7 @@ export class MergerRecommendations {
         {
           id: 'execute-batch-swaps',
           name: 'Execute Merger Swaps',
-          description: `Batch execution strategy: ${batchDetails}`,
+          description: 'Dynamic batch execution strategy',
           details: [
             `Total amount: ${this.formatNumber(mergerMetrics.requiredMint)} ${phasedOutToken}`,
             `Price impact: Calculated during execution`,

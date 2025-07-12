@@ -99,7 +99,7 @@ const SuccessNotification = ({ show, onClose, title, message, impact, details })
                 </motion.p>
 
                 {/* Impact Metrics */}
-                {impact && (
+                {impact && Object.keys(impact).length > 0 && (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -107,24 +107,27 @@ const SuccessNotification = ({ show, onClose, title, message, impact, details })
                     className="p-4 bg-white/5 rounded-xl border border-white/10 mb-6"
                   >
                     <div className="grid grid-cols-1 gap-2 text-sm">
-                      {impact.priceImpact && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-white/70">Price Impact:</span>
-                          <span className="text-emerald-400 font-medium">{impact.priceImpact}</span>
-                        </div>
-                      )}
-                      {impact.totalValue && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-white/70">Total Value:</span>
-                          <span className="text-blue-400 font-medium">{impact.totalValue}</span>
-                        </div>
-                      )}
-                      {impact.dilution && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-white/70">Dilution:</span>
-                          <span className="text-yellow-400 font-medium">{impact.dilution}</span>
-                        </div>
-                      )}
+                      {Object.entries(impact).map(([key, value], index) => {
+                        // Format the key into a readable label
+                        const label = key
+                          .replace(/([A-Z])/g, ' $1') // Add space before capital letters
+                          .replace(/^./, str => str.toUpperCase()) // Capitalize first letter
+                          .trim();
+                        
+                        // Choose color based on key type
+                        let valueColor = 'text-emerald-400';
+                        if (key.includes('dilution')) valueColor = 'text-yellow-400';
+                        else if (key.includes('value') || key.includes('Value')) valueColor = 'text-blue-400';
+                        else if (key.includes('efficiency')) valueColor = 'text-purple-400';
+                        else if (key.includes('coverage')) valueColor = 'text-cyan-400';
+                        
+                        return (
+                          <div key={key} className="flex items-center justify-between">
+                            <span className="text-white/70">{label}:</span>
+                            <span className={`${valueColor} font-medium`}>{value}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </motion.div>
                 )}

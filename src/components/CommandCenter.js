@@ -44,7 +44,8 @@ const CommandCenter = () => {
     show: false,
     title: '',
     message: '',
-    impact: null
+    impact: null,
+    details: null
   });
   
   const { prices, circulationData, mergerConfiguration } = useData();
@@ -238,7 +239,8 @@ const CommandCenter = () => {
       show: true,
       title: successData.title,
       message: successData.message,
-      impact: successData.impact
+      impact: successData.impact,
+      details: successData.details
     });
     
     setExecutingActions(prev => {
@@ -261,6 +263,20 @@ const CommandCenter = () => {
         impact: {
           revenue: 'Risk-adjusted',
           efficiency: '44.4% avg volatility'
+        },
+        details: {
+          system_components_affected: ['Price Volatility Engine', 'Risk Assessment Module', 'Historical Data Analyzer', 'Standard Deviation Calculator'],
+          performance_metrics: [
+            { metric: 'Pairs Analyzed', value: '25', comment: 'All active DAO pairs' },
+            { metric: 'High Risk Pairs', value: '3', comment: 'UNI-COMP, AAVE-SUSHI, SNX-BAL' },
+            { metric: 'Average Volatility', value: '44.4%', comment: '30-day rolling window' },
+            { metric: 'Max Deviation', value: '127%', comment: 'SNX-BAL pair' }
+          ],
+          next_recommended_actions: [
+            'Adjust concentration parameters for high-volatility pairs',
+            'Consider smaller batch sizes for volatile mergers',
+            'Implement dynamic rebalancing for risk mitigation'
+          ]
         }
       },
       'correlation_calculator': {
@@ -269,6 +285,20 @@ const CommandCenter = () => {
         impact: {
           revenue: 'High correlation pairs',
           efficiency: '0.81 max correlation'
+        },
+        details: {
+          system_components_affected: ['Pearson Correlation Engine', 'Price History Database', 'Pair Matching Algorithm', 'Concentration Optimizer'],
+          performance_metrics: [
+            { metric: 'Correlation Pairs', value: '12', comment: 'Above 0.7 threshold' },
+            { metric: 'Max Correlation', value: '0.81', comment: 'AAVE-COMP pair' },
+            { metric: 'Optimal Concentration', value: '0.35/0.9', comment: 'For correlated pairs' },
+            { metric: 'Analysis Period', value: '90 days', comment: 'Historical data window' }
+          ],
+          next_recommended_actions: [
+            'Prioritize high-correlation pairs for merger',
+            'Use tighter concentration bands for correlated assets',
+            'Monitor correlation changes during execution'
+          ]
         }
       },
       'pool_parameter_optimizer': {
@@ -277,6 +307,20 @@ const CommandCenter = () => {
         impact: {
           revenue: 'Minimized price impact',
           efficiency: '0.25/0.85 concentration'
+        },
+        details: {
+          system_components_affected: ['EulerSwap AMM Engine', 'Concentration Parameter Calculator', 'JIT Borrowing Simulator', 'Price Impact Modeler'],
+          performance_metrics: [
+            { metric: 'Concentration X', value: '0.25', comment: 'Phased-out token parameter' },
+            { metric: 'Concentration Y', value: '0.85', comment: 'Surviving token parameter' },
+            { metric: 'Capital Efficiency', value: '32x', comment: 'vs traditional AMM' },
+            { metric: 'Expected Slippage', value: '<1.2%', comment: 'For standard batch size' }
+          ],
+          next_recommended_actions: [
+            'Deploy one-sided liquidity pool with optimized parameters',
+            'Monitor initial swaps for parameter validation',
+            'Prepare JIT borrowing vault with sufficient liquidity'
+          ]
         }
       },
       'batch_execution_planner': {
@@ -285,13 +329,28 @@ const CommandCenter = () => {
         impact: {
           revenue: '67% impact reduction',
           efficiency: '12 optimal batches'
+        },
+        details: {
+          system_components_affected: ['Batch Execution Engine', 'Price Impact Calculator', 'Timeline Optimizer', 'Gas Cost Estimator'],
+          performance_metrics: [
+            { metric: 'Total Batches', value: '12', comment: 'Optimally distributed' },
+            { metric: 'Execution Period', value: '5 days', comment: 'Market-hour weighted' },
+            { metric: 'Impact Reduction', value: '67%', comment: 'vs single swap' },
+            { metric: 'Gas Optimization', value: '$1,200', comment: 'Estimated savings' }
+          ],
+          next_recommended_actions: [
+            'Review batch schedule for market timing',
+            'Set up monitoring for each batch execution',
+            'Prepare for dynamic adjustment if needed'
+          ]
         }
       }
     };
     return successData[actionType] || {
       title: 'Action Complete',
       message: 'Operation completed successfully.',
-      impact: null
+      impact: null,
+      details: null
     };
   };
 
@@ -855,6 +914,7 @@ const CommandCenter = () => {
         title={successNotification.title}
         message={successNotification.message}
         impact={successNotification.impact}
+        details={successNotification.details}
         onClose={() => setSuccessNotification(prev => ({ ...prev, show: false }))}
       />
     </div>
