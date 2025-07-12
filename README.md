@@ -1,4 +1,4 @@
-# FORMULA - EulerSwap One-Sided JIT Liquidity Merger Simulator
+# FORMULA - DAO Merger Simulator
 
 **Interactive simulation platform for DAO mergers using EulerSwap's innovative one-sided Just-In-Time liquidity model**
 
