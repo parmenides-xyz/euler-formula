@@ -6,7 +6,7 @@ FORMULA provides comprehensive modeling and real-time simulation of DAO treasury
 
 ## Overview
 
-FORMULA simulates DAO mergers using EulerSwap's one-sided JIT liquidity provisioning model. Unlike traditional AMMs requiring dual-sided liquidity, EulerSwap's architecture enables capital-efficient mergers where only the surviving DAO funds a vault (achieving up to 40x capital efficiency), while the phased-out DAO's tokens serve as collateral for JIT borrowing. This creates a truly asymmetric pool with dynamic price discovery through configurable concentration parameters.
+FORMULA simulates DAO mergers using EulerSwap's one-sided JIT liquidity provisioning model. Unlike traditional AMMs requiring dual-sided liquidity, EulerSwap's architecture enables capital-efficient mergers where only the surviving DAO funds a vault, while the phased-out DAO's tokens serve as collateral for JIT borrowing. This creates a truly asymmetric pool with dynamic price discovery through configurable concentration parameters.
 
 ## Table of Contents
 
