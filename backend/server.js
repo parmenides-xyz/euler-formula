@@ -187,7 +187,7 @@ app.get('/api/token-circulation/:token', async (req, res) => {
       url: `https://api.coingecko.com/api/v3/coins/${coinId}?market_data=true`,
       headers: {
         accept: 'application/json',
-        'x-cg-demo-api-key': process.env.COINGECKO_API_KEY || 'CG-Rr8F4TmKfgn79tmyDeWoA68A'
+        'x-cg-demo-api-key': process.env.COINGECKO_API_KEY
       }
     };
     
