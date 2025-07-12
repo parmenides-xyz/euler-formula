@@ -137,102 +137,83 @@ app.get('/api/prices', async (req, res) => {
   }
 });
 
-// API endpoint to fetch DAO treasury data from DeFiLlama
-app.get('/api/treasuries', async (req, res) => {
+// API endpoint for token circulating supply from CoinGecko
+app.get('/api/token-circulation/:token', async (req, res) => {
   try {
-    console.log('Fetching DAO treasury data from DeFiLlama...');
+    const { token } = req.params;
     
-    const apiKey = process.env.DEFILLAMA_API_KEY;
-    const response = await axios.get(`https://pro-api.llama.fi/${apiKey}/api/treasuries`);
-    
-    console.log('Treasury API Response received:');
-    console.log('Status:', response.status);
-    console.log('Total treasuries found:', response.data.length);
-    
-    // Create a mapping of DAO names to match against treasury names
-    const daoNameMappings = {
-      'UNI': ['uniswap'],
-      'AAVE': ['aave'],
-      'COMP': ['compound'],
-      'CRV': ['curve'],
-      'SKY': ['sky'],
-      'SUSHI': ['sushi'],
-      'BAL': ['balancer'],
-      'SNX': ['synthetix'],
-      'YFI': ['yearn'],
-      'LDO': ['lido'],
-      'GLM': ['golem'],
-      'OHM': ['olympus'],
-      'GNO': ['gnosis'],
-      'ENS': ['ens', 'ethereum name service'],
-      'COW': ['cow', 'cowswap'],
-      'CVX': ['convex'],
-      'LQTY': ['liquity'],
-      'SILO': ['silo'],
-      'XVS': ['venus'],
-      'EUL': ['euler'],
-      'MNT': ['mantle']
-    };
-    
-    // Filter treasuries for our tracked DAOs
-    const relevantTreasuries = [];
-    
-    for (const [symbol, nameVariants] of Object.entries(daoNameMappings)) {
-      const matchingTreasuries = response.data.filter(treasury => 
-        nameVariants.some(variant => 
-          treasury.name.toLowerCase().includes(variant.toLowerCase())
-        )
-      );
-      
-      if (matchingTreasuries.length > 0) {
-        relevantTreasuries.push({
-          symbol: symbol,
-          treasuries: matchingTreasuries.map(t => ({
-            id: t.id,
-            name: t.name,
-            tvl: t.tvl || 0,
-            chainTvls: {
-              ...t.chainTvls,
-              // Add stablecoins to chainTvls for backwards compatibility
-              stablecoins: t.tokenBreakdowns?.stablecoins || 0
-            },
-            tokensBreakdown: t.tokensBreakdown || {},
-            tokenBreakdowns: t.tokenBreakdowns || {},
-            ownTokens: t.chainTvls?.OwnTokens || 0,
-            chain: t.chain || 'Unknown',
-            change_1h: t.change_1h || 0,
-            change_1d: t.change_1d || 0,
-            change_7d: t.change_7d || 0,
-            url: t.url || null,
-            // Also add stablecoins as a top-level field for easy access
-            stablecoins: t.tokenBreakdowns?.stablecoins || 0
-          }))
-        });
-      }
+    // Validate token parameter
+    if (!token || !DAO_TOKEN_ADDRESSES[token.toUpperCase()]) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid token. Valid tokens are: ${Object.keys(DAO_TOKEN_ADDRESSES).join(', ')}`,
+        timestamp: new Date().toISOString()
+      });
     }
     
-    console.log('Relevant treasuries found:', relevantTreasuries.length);
-    console.log('Sample treasuries:', relevantTreasuries.slice(0, 3).map(t => ({
-      symbol: t.symbol,
-      count: t.treasuries.length,
-      totalTvl: t.treasuries.reduce((sum, treasury) => sum + (treasury.tvl || 0), 0)
-    })));
+    const tokenSymbol = token.toUpperCase();
+    
+    // Map token symbols to CoinGecko IDs
+    const coingeckoIds = {
+      'UNI': 'uniswap',
+      'AAVE': 'aave',
+      'COMP': 'compound-governance-token',
+      'SKY': 'sky',
+      'SUSHI': 'sushi',
+      'BAL': 'balancer',
+      'SNX': 'havven',
+      'LDO': 'lido-dao',
+      'EUL': 'euler',
+      'GLM': 'golem',
+      'OHM': 'olympus',
+      'ENS': 'ethereum-name-service',
+      'MNT': 'mantle',
+      'COW': 'cow-protocol',
+      'CVX': 'convex-finance',
+      'LQTY': 'liquity',
+      'SILO': 'silo-finance',
+      'XVS': 'venus'
+    };
+    
+    const coinId = coingeckoIds[tokenSymbol];
+    if (!coinId) {
+      throw new Error(`No CoinGecko ID mapping found for token ${tokenSymbol}`);
+    }
+    
+    console.log(`Fetching circulating supply for ${tokenSymbol} (${coinId}) from CoinGecko`);
+    
+    const options = {
+      method: 'GET',
+      url: `https://api.coingecko.com/api/v3/coins/${coinId}?market_data=true`,
+      headers: {
+        accept: 'application/json',
+        'x-cg-demo-api-key': process.env.COINGECKO_API_KEY || 'CG-Rr8F4TmKfgn79tmyDeWoA68A'
+      }
+    };
+    
+    const response = await axios.request(options);
+    
+    if (!response.data || !response.data.market_data) {
+      throw new Error('Invalid response format from CoinGecko API');
+    }
+    
+    const circulatingSupply = response.data.market_data.circulating_supply;
+    
+    console.log(`Token ${tokenSymbol} circulating supply: ${circulatingSupply.toLocaleString()}`);
     
     res.json({
       success: true,
-      data: relevantTreasuries,
-      summary: {
-        totalDaosWithTreasuries: relevantTreasuries.length,
-        totalTreasuriesFound: relevantTreasuries.reduce((sum, dao) => sum + dao.treasuries.length, 0),
-        totalValueLocked: relevantTreasuries.reduce((sum, dao) => 
-          sum + dao.treasuries.reduce((daoSum, t) => daoSum + (t.tvl || 0), 0), 0
-        )
+      data: {
+        token: tokenSymbol,
+        circulatingSupply: circulatingSupply,
+        name: response.data.name,
+        symbol: response.data.symbol.toUpperCase()
       },
       timestamp: new Date().toISOString()
     });
     
   } catch (error) {
-    console.error('Error fetching treasuries:', error.message);
+    console.error('Error fetching token circulation data:', error.message);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -241,125 +222,6 @@ app.get('/api/treasuries', async (req, res) => {
   }
 });
 
-// Helper function to decode Euler AmountCap format
-function decodeAmountCap(rawCap) {
-  if (rawCap === 0) return Number.MAX_SAFE_INTEGER; // No limit
-  
-  const exponent = rawCap & 63; // Last 6 bits
-  const mantissa = rawCap >> 6;  // First 10 bits
-  
-  return Math.pow(10, exponent) * mantissa / 100;
-}
-
-// API endpoint for Euler Prime USDC Vault data
-app.get('/api/euler-vaults', async (req, res) => {
-  try {
-    const EULER_PRIME_USDC_VAULT = "0x797DD80692c3b2dAdabCe8e30C07fDE5307D48a9";
-    
-    // ABI for Euler Vault
-    const eulerVaultABI = [
-      "function totalAssets() external view returns (uint256)",
-      "function convertToAssets(uint256 shares) external view returns (uint256)",
-      "function convertToShares(uint256 assets) external view returns (uint256)",
-      "function cash() external view returns (uint256)",
-      "function totalBorrows() external view returns (uint256)",
-      "function debtOf(address account) external view returns (uint256)",
-      "function interestRate() external view returns (uint256)",
-      "function interestAccumulator() external view returns (uint256)",
-      "function asset() external view returns (address)",
-      "function name() external view returns (string)",
-      "function symbol() external view returns (string)",
-      "function decimals() external view returns (uint8)",
-      "function caps() external view returns (uint16 supplyCap, uint16 borrowCap)",
-      "function LTVFull(address collateral) external view returns (uint16 borrowLTV, uint16 liquidationLTV, uint16 initialLiquidationLTV, uint48 targetTimestamp, uint32 rampDuration)",
-      "function creator() external view returns (address)",
-      "function oracle() external view returns (address)",
-      "function unitOfAccount() external view returns (address)"
-    ];
-    
-    const provider = new ethers.JsonRpcProvider(
-      process.env.ETH_RPC_URL || 'https://eth-mainnet.g.alchemy.com/v2/exAp0m_LKHnmcM2Uni2BbYH5cLgBYaV2'
-    );
-    
-    const vault = new ethers.Contract(EULER_PRIME_USDC_VAULT, eulerVaultABI, provider);
-    
-    // Fetch vault data
-    const [name, symbol, decimals, asset] = await Promise.all([
-      vault.name(),
-      vault.symbol(),
-      vault.decimals(),
-      vault.asset()
-    ]);
-    
-    const [totalAssets, cash, totalBorrows, interestRate] = await Promise.all([
-      vault.totalAssets(),
-      vault.cash(),
-      vault.totalBorrows(),
-      vault.interestRate()
-    ]);
-    
-    const [rawSupplyCap, rawBorrowCap] = await vault.caps();
-    const supplyCap = decodeAmountCap(Number(rawSupplyCap));
-    const borrowCap = decodeAmountCap(Number(rawBorrowCap));
-    
-    // CORRECT CALCULATIONS
-    const utilizationRate = totalAssets > 0n ? Number((totalBorrows * 10000n) / totalAssets) : 0;
-    const availableToBorrow = cash; // Cash IS what's available to borrow
-    
-    // Calculate borrow cap remaining
-    const totalBorrowsFormatted = Number(ethers.formatUnits(totalBorrows, decimals));
-    const borrowCapRemaining = borrowCap === Number.MAX_SAFE_INTEGER ? 
-      Number.MAX_SAFE_INTEGER : 
-      Math.max(0, borrowCap - totalBorrowsFormatted);
-    
-    // Convert SPY to APY properly
-    const SECONDS_PER_YEAR = 365.2425 * 24 * 60 * 60;
-    const interestRateSPY = Number(ethers.formatUnits(interestRate, 27));
-    const apy = Math.pow(1 + interestRateSPY, SECONDS_PER_YEAR) - 1;
-    
-    // Format response
-    const vaultData = {
-      address: EULER_PRIME_USDC_VAULT,
-      name,
-      symbol,
-      decimals: Number(decimals),
-      underlyingAsset: asset,
-      
-      // Financial state
-      totalAssets: ethers.formatUnits(totalAssets, decimals),
-      cash: ethers.formatUnits(cash, decimals), // Available liquidity
-      totalBorrows: ethers.formatUnits(totalBorrows, decimals),
-      availableToBorrow: ethers.formatUnits(availableToBorrow, decimals),
-      utilizationBps: utilizationRate,
-      utilizationPercent: utilizationRate / 100,
-      interestRateSPY: interestRateSPY.toString(),
-      
-      // Risk parameters (now properly decoded)
-      supplyCap: supplyCap === Number.MAX_SAFE_INTEGER ? "No limit" : supplyCap.toLocaleString(),
-      borrowCap: borrowCap === Number.MAX_SAFE_INTEGER ? "No limit" : borrowCap.toLocaleString(),
-      borrowCapRemaining: borrowCapRemaining === Number.MAX_SAFE_INTEGER ? "No limit" : borrowCapRemaining.toLocaleString(),
-      
-      // Merger-specific calculations
-      maxBorrowableUSDC: ethers.formatUnits(availableToBorrow, decimals),
-      currentAPY: (apy * 100).toFixed(2) + '%',
-      
-      timestamp: new Date().toISOString()
-    };
-    
-    res.json({
-      success: true,
-      data: vaultData
-    });
-    
-  } catch (error) {
-    console.error('Error querying Euler Prime USDC vault:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
 
 app.post('/api/test-analysis', async (req, res) => {
     // WARNING: Hardcoding API keys is insecure. In production, use environment variables.
@@ -410,81 +272,129 @@ app.post('/api/chat', async (req, res) => {
   try {  
     const { messages: userMessages, mergerPair } = req.body; // mergerPair like "AAVE-COMP"
       
-    // Fetch real-time data for merger context
-    const [vaultsRes, pricesRes, treasuriesRes] = await Promise.all([
-      axios.get(`${BACKEND_URL}/api/euler-vaults`),
-      axios.get(`${BACKEND_URL}/api/prices`),
-      axios.get(`${BACKEND_URL}/api/treasuries`)
-    ]);
-  
-    const eulerVault = vaultsRes.data.data;
-    const prices = pricesRes.data.data;
-    const treasuries = treasuriesRes.data.data;
-    
     // Extract DAOs from merger pair
     const [daoA, daoB] = mergerPair ? mergerPair.split('-') : ['UNKNOWN', 'UNKNOWN'];
+    
+    // Fetch prices and circulating supply for both tokens
+    const [pricesRes, tokenACirculation, tokenBCirculation] = await Promise.all([
+      axios.get(`${BACKEND_URL}/api/prices`),
+      daoA !== 'UNKNOWN' ? axios.get(`${BACKEND_URL}/api/token-circulation/${daoA}`) : Promise.resolve({ data: { data: { circulatingSupply: 0 } } }),
+      daoB !== 'UNKNOWN' ? axios.get(`${BACKEND_URL}/api/token-circulation/${daoB}`) : Promise.resolve({ data: { data: { circulatingSupply: 0 } } })
+    ]);
+  
+    const prices = pricesRes.data.data;
     
     // Get specific DAO data
     const daoAPrice = prices.find(p => p.symbol === daoA)?.currentPrice || 0;
     const daoBPrice = prices.find(p => p.symbol === daoB)?.currentPrice || 0;
-    const daoATreasury = treasuries.find(t => t.symbol === daoA) || {};
-    const daoBTreasury = treasuries.find(t => t.symbol === daoB) || {};
+    const daoASupply = tokenACirculation.data.data.circulatingSupply || 0;
+    const daoBSupply = tokenBCirculation.data.data.circulatingSupply || 0;
+    
+    // Calculate merger metrics
+    const requiredMint = daoASupply && daoBPrice ? (daoASupply * daoAPrice) / daoBPrice : 0;
+    const dilutionPercentage = daoBSupply ? (requiredMint / (daoBSupply + requiredMint)) * 100 : 0;
+    
+    // Calculate dynamic concentration parameters
+    // Lower concentration for phased-out token (allows more price discovery)
+    // Higher concentration for surviving token (provides stability)
+    const marketCapRatio = daoASupply && daoBSupply && daoAPrice && daoBPrice ? 
+      (daoASupply * daoAPrice) / (daoBSupply * daoBPrice) : 1;
+    
+    // concentrationX: 0.3-0.5 for phased-out token (lower = more flexible pricing)
+    const concentrationX = marketCapRatio < 0.1 ? 0.3 : 
+                          marketCapRatio < 1 ? 0.4 : 
+                          0.5;
+    
+    // concentrationY: 0.8-0.95 for surviving token (higher = more stable)
+    const concentrationY = dilutionPercentage < 10 ? 0.95 : 
+                          dilutionPercentage < 30 ? 0.9 : 
+                          0.85;
   
     // Build clean system prompt for merger context  
-    const systemPrompt = `You are Formula, an expert in DAO treasury management and capital-efficient token swaps using EulerSwap's innovative borrowing mechanisms.
+    const systemPrompt = `You are FORMULA, an expert in EulerSwap's one-sided JIT liquidity model for capital-efficient DAO mergers.
 
 Current Merger Context:
-DAO A: ${daoA} (Price: $${daoAPrice.toFixed(2)}, Treasury: $${(daoATreasury.totalValue || 0).toLocaleString()}, Stables: $${(daoATreasury.stablecoinValue || 0).toLocaleString()})
-DAO B: ${daoB} (Price: $${daoBPrice.toFixed(2)}, Treasury: $${(daoBTreasury.totalValue || 0).toLocaleString()}, Stables: $${(daoBTreasury.stablecoinValue || 0).toLocaleString()})
+• Phased-out Token: ${daoA} 
+  - Circulating Supply: ${daoASupply.toLocaleString()} tokens
+  - Price: $${daoAPrice.toFixed(2)}
+  - Market Cap: $${(daoASupply * daoAPrice).toLocaleString()}
+• Surviving Token: ${daoB}
+  - Circulating Supply: ${daoBSupply.toLocaleString()} tokens
+  - Price: $${daoBPrice.toFixed(2)}
+  - Market Cap: $${(daoBSupply * daoBPrice).toLocaleString()}
 
-Euler Prime USDC Vault Status:
-- Available to Borrow: $${eulerVault.availableToBorrow || '0'}
-- Utilization: ${eulerVault.utilizationPercent || 0}%
-- Current APY: ${eulerVault.currentAPY || '0%'}
-- Borrow Cap Remaining: ${eulerVault.borrowCapRemaining || 'Unknown'}
+EulerSwap One-Sided JIT Model:
+• Zero initial liquidity deployment (currReserve0 = 1, currReserve1 = ${requiredMint.toFixed(0)})
+• Only surviving token vault needs pre-funding
+• Phased-out tokens deposited as collateral in their vault
+• Surviving tokens borrowed just-in-time from pre-funded vault
+• Up to 40x capital efficiency vs traditional AMMs
+
+Merger Feasibility Assessment:
+• Required surviving token mint: ${requiredMint.toLocaleString()} ${daoB} tokens
+• Dilution impact: ${dilutionPercentage.toFixed(1)}% to ${daoB} holders
+• Status: ${dilutionPercentage < 20 ? 'Green (low dilution)' : dilutionPercentage < 50 ? 'Yellow (moderate dilution)' : 'Red (high dilution)'}
+• Market cap ratio: ${daoASupply && daoBSupply ? ((daoASupply * daoAPrice) / (daoBSupply * daoBPrice)).toFixed(2) : 'N/A'}x
+
+Pool Configuration:
+- vault0: ${daoA} vault (collateral sink only)
+- vault1: ${daoB} vault (pre-funded liquidity source)
+- equilibriumReserve0: 1 (no pre-funding for phased-out side)
+- equilibriumReserve1: ${requiredMint.toLocaleString()} tokens
+- concentrationX/Y: 0.95e18 (95% concentration for efficiency)
+- priceX/Y: Based on ${(daoAPrice/daoBPrice).toFixed(4)} ratio
+- fee: 0.003e18 (0.3% standard fee)
+
+Dynamic Pricing:
+• Continuous price adjustment based on swap volume
+• High concentration (95%) provides efficiency with controlled slippage
+• Price impact increases for swaps beyond concentrated range
+• No fixed exchange rate - market-driven price discovery
+
+Key Advantages:
+• No idle capital locked in pools
+• Single-sided funding requirement
+• Yield generation on vault deposits
+• True price discovery through AMM curve
+• Phased execution possible for large mergers
 
 Your role is to:
-• Explain the cross-collateralization model:
-  - DAOs deposit USDC into Euler's USDC vault as collateral
-  - Native token vaults (SUSHI/UNI) accept USDC vault positions as collateral
-  - DAOs can borrow native tokens using USDC collateral (not depositing native tokens as collateral)
-  - Each swap deposits tokens into the opposite vault, creating borrowable liquidity
-• Assess merger feasibility based on stablecoin holdings and USDC vault availability
-• Calculate borrowing capacity: With 90% LTV, $10M USDC enables borrowing up to $9M in native tokens
-• Guide users through the setup:
-  - SUSHI vault must call setLTV(USDC_vault, 0.9e4, 0.9e4, 0) to accept USDC as collateral
-  - UNI vault must call setLTV(USDC_vault, 0.9e4, 0.9e4, 0) to accept USDC as collateral
-  - Initial native token deposits: 10-20% of total swap value
-  - NO native tokens used as collateral - only USDC
-• Simulate the cross-deposit feedback loop:
-  - Swap 1: UNI borrows SUSHI → deposits UNI into SUSHI vault
-  - Swap 2: SUSHI can now borrow UNI from SUSHI vault (!!)
-  - Each swap increases borrowable liquidity
-• Alert to constraints: USDC vault liquidity, borrow caps, collateral requirements
-
-Key Model Points:
-- USDC LTV in native vaults: 85-95% (stablecoins are low-risk collateral)
-- Only need 10-20% native tokens initially - rest comes from borrowing
-- Cross-deposits multiply efficiency with each swap
-- 5-7x capital efficiency vs traditional AMMs
+• Explain the one-sided JIT liquidity model and how it works
+• Assess merger feasibility based on circulating supplies and dilution impact
+• Calculate required surviving token mint amounts
+• Guide users through pool configuration with specific parameters
+• Analyze price impact and recommend execution strategies
+• Focus on "merger feasibility" not "ragequit" or "phaseout" mechanisms
 
 When users ask about merger execution, provide specific parameter recommendations:
 
-Vault Configuration (setLTV calls):
-- SUSHI_vault.setLTV(USDC_vault_address, borrowLTV, liquidationLTV, 0)
-- UNI_vault.setLTV(USDC_vault_address, borrowLTV, liquidationLTV, 0)
-- Recommended values: borrowLTV=0.9e4 (90%), liquidationLTV=0.93e4 (93%)
+EulerSwap Pool Parameters for ${daoA}-${daoB} merger:
+{
+  vault0: "${daoA}VaultAddress",     // Phased-out token vault (collateral only)
+  vault1: "${daoB}VaultAddress",     // Surviving token vault (liquidity source)
+  equilibriumReserve0: 1,             // Zero for phased-out side
+  equilibriumReserve1: ${requiredMint.toFixed(0)},  // Required mint amount
+  priceX: 1e18,                       // Base unit
+  priceY: ${Math.floor((daoAPrice/daoBPrice) * 1e18)}, // Price ratio
+  concentrationX: ${concentrationX}e18,    // Dynamic: ${(concentrationX * 100).toFixed(0)}% for phased-out token
+  concentrationY: ${concentrationY}e18,    // Dynamic: ${(concentrationY * 100).toFixed(0)}% for surviving token
+  fee: 0.003e18,                      // 0.3% fee
+  currReserve0: 1,                    // No initial liquidity
+  currReserve1: ${requiredMint.toFixed(0)} // Start at equilibrium point
+}
 
-EulerSwap Pool Parameters:
-- equilibriumReserve0: [Calculate based on expected swap volume]
-- equilibriumReserve1: [Calculate based on expected swap volume]
-- priceX: [Current price ratio, e.g., 1e27 for 1:1]
-- priceY: [Inverse of priceX]
-- concentrationX: [0.7e18 to 0.95e18 based on volatility]
-- concentrationY: [Usually same as concentrationX]
-- fee: [0.001e18 to 0.003e18 for 0.1-0.3%]
-- currReserve0: [Initial deposit amount]
-- currReserve1: [Initial deposit amount]`;
+Execution Steps:
+1. Deploy ${daoB} vault with sufficient tokens (${(requiredMint * 1.2).toFixed(0)} with buffer)
+2. Deploy ${daoA} vault (empty - will receive collateral)
+3. Configure pool with asymmetric parameters above
+4. Execute swaps - each swap borrows ${daoB} using ${daoA} as collateral
+5. Monitor price impact and adjust execution pace
+
+Feasibility Score Components:
+- Supply ratio compatibility (30%): ${daoASupply && daoBSupply ? 'Market cap ratio ' + ((daoASupply * daoAPrice) / (daoBSupply * daoBPrice)).toFixed(2) + 'x' : 'N/A'}
+- Dilution acceptability (35%): ${dilutionPercentage.toFixed(1)}% dilution
+- Price impact tolerance (20%): Depends on swap size vs concentration
+- Vault funding capability (15%): ${daoB} DAO's ability to fund ${requiredMint.toLocaleString()} tokens`;
 
     // Call Claude via Messages API  
     const aiResp = await axios.post('https://api.anthropic.com/v1/messages', {  
@@ -526,86 +436,142 @@ app.post('/api/analysis', async (req, res) => {
     console.log('Performing AI analysis of DAO merger strategy...');  
     console.log('Merger context keys:', Object.keys(mergerContext));  
   
-    // Create a condensed version of merger context to avoid API limits
+    // Extract DAO information
+    const daoA = mergerContext.daoA;
+    const daoB = mergerContext.daoB;
+    
+    if (!daoA || !daoB) {
+      return res.status(400).json({
+        success: false,
+        error: 'Both daoA and daoB must be provided in merger context',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Fetch circulating supply data for merger pair
+    const [daoACirculation, daoBCirculation] = await Promise.all([
+      axios.get(`${BACKEND_URL}/api/token-circulation/${daoA.symbol}`),
+      axios.get(`${BACKEND_URL}/api/token-circulation/${daoB.symbol}`)
+    ]);
+    
+    // Calculate key merger metrics
+    const daoASupply = daoACirculation.data.data.circulatingSupply || 0;
+    const daoBSupply = daoBCirculation.data.data.circulatingSupply || 0;
+    const daoAPrice = daoA.price || 0;
+    const daoBPrice = daoB.price || 0;
+    
+    const requiredMint = daoASupply && daoBPrice ? (daoASupply * daoAPrice) / daoBPrice : 0;
+    const dilutionPercentage = daoBSupply ? (requiredMint / (daoBSupply + requiredMint)) * 100 : 0;
+    const marketCapRatio = daoASupply && daoBSupply && daoAPrice && daoBPrice ? 
+      (daoASupply * daoAPrice) / (daoBSupply * daoBPrice) : 0;
+    
+    // Calculate dynamic concentration parameters
+    // Lower concentration for phased-out token (allows more price discovery)
+    // Higher concentration for surviving token (provides stability)
+    
+    // concentrationX: 0.3-0.5 for phased-out token (lower = more flexible pricing)
+    const concentrationX = marketCapRatio < 0.1 ? 0.3 : 
+                          marketCapRatio < 1 ? 0.4 : 
+                          0.5;
+    
+    // concentrationY: 0.8-0.95 for surviving token (higher = more stable)
+    const concentrationY = dilutionPercentage < 10 ? 0.95 : 
+                          dilutionPercentage < 30 ? 0.9 : 
+                          0.85;
+    
+    // Create condensed context with circulation data
     const condensedContext = {
+      daoA: {
+        symbol: daoA.symbol,
+        price: daoAPrice,
+        circulatingSupply: daoASupply,
+        marketCap: daoASupply * daoAPrice
+      },
+      daoB: {
+        symbol: daoB.symbol,
+        price: daoBPrice,
+        circulatingSupply: daoBSupply,
+        marketCap: daoBSupply * daoBPrice
+      },
+      mergerMetrics: {
+        requiredMint,
+        dilutionPercentage,
+        marketCapRatio
+      },
       prices: mergerContext.prices?.map(p => ({
         symbol: p.symbol,
         currentPrice: p.currentPrice,
         decimals: p.decimals,
-        // Only include last 7 days of price history
         recentPrices: p.priceHistory?.slice(-7) || []
-      })),
-      treasuries: mergerContext.treasuries?.map(t => ({
-        symbol: t.symbol,
-        treasuries: t.treasuries?.map(treasury => ({
-          name: treasury.name,
-          tvl: treasury.tvl,
-          stablecoins: treasury.stablecoins,
-          ownTokens: treasury.ownTokens
-        }))
-      })),
-      vaults: {
-        utilization: mergerContext.vaults?.utilization,
-        borrowAPY: mergerContext.vaults?.borrowAPY,
-        supplyAPY: mergerContext.vaults?.supplyAPY,
-        totalBorrows: mergerContext.vaults?.totalBorrows,
-        cash: mergerContext.vaults?.cash
-      },
-      mergerConfiguration: mergerContext.mergerConfiguration
+      }))
     };
     
     // Create the analysis prompt for DAO merger optimization
-    const analysisPrompt = `You are the EulerSwap Strategy Engine. Analyze this DAO merger scenario and provide comprehensive strategic recommendations.
+    const analysisPrompt = `You are the EulerSwap Strategy Engine. Analyze this DAO merger using the one-sided JIT liquidity model.
 
-1. **Status**: A "Green", "Yellow", or "Red" indicator based on merger feasibility.
-   * **Green**: Both DAOs have sufficient stablecoins, USDC vault has liquidity, treasury sizes aligned
-   * **Yellow**: Some constraints (limited stables, high vault utilization, size mismatch)
-   * **Red**: Blocking issues (insufficient collateral, no vault liquidity, extreme size disparity)
+MERGER FEASIBILITY ASSESSMENT FRAMEWORK:
 
-2. **Compatibility Score** (0-100): Calculate based on:
-   * Treasury size ratio (optimal 0.5-2.0x)
-   * Stablecoin sufficiency (need 15-30% of swap value)
-   * Token price correlation (lower = better diversification)
-   * USDC vault availability vs required borrowing
+1. **Circulating Supply Analysis**:
+   - ${daoA.symbol}: ${daoASupply.toLocaleString()} tokens at $${daoAPrice}
+   - ${daoB.symbol}: ${daoBSupply.toLocaleString()} tokens at $${daoBPrice}
+   - Market cap ratio: ${marketCapRatio.toFixed(2)}x
+   - Optimal range: 0.1x to 10x
 
-3. **Optimal Execution Strategy**: Provide specific, actionable steps:
-   * Initial vault setup requirements
-   * Recommended swap sequence and sizes
-   * Dynamic LTV ratios based on treasury composition
-   * Cross-deposit accumulation projections
-   * Timing recommendations based on vault liquidity
+2. **Required Surviving Token Mint**:
+   - Calculation: (${daoASupply.toLocaleString()} × $${daoAPrice}) / $${daoBPrice}
+   - Required mint: ${requiredMint.toLocaleString()} ${daoB.symbol}
+   - Dilution: ${dilutionPercentage.toFixed(1)}%
+   - Status: ${dilutionPercentage < 20 ? 'Green' : dilutionPercentage < 50 ? 'Yellow' : 'Red'}
 
-4. **Risk Assessment**: Quantify key risks:
-   * Liquidity risk: Probability of vault exhaustion
-   * Price impact: Expected slippage from swaps
-   * Collateral risk: LTV buffer recommendations
-   * Governance risk: Alignment score
+3. **Feasibility Status**: Determine "Green", "Yellow", or "Red" based on:
+   * **Green**: Dilution <20%, market cap ratio 0.5-2x, straightforward execution
+   * **Yellow**: Dilution 20-50%, market cap ratio 0.1-10x, requires phased approach
+   * **Red**: Dilution >50%, extreme market cap disparity, not recommended
 
-Consider EulerSwap's capital efficiency mechanisms:
-   * Stablecoin collateral enables 5-7x leverage on native tokens
-   * Cross-deposits create self-reinforcing liquidity
-   * Progressive swaps allow price discovery
-   * USDC vault constraints limit borrowing capacity
+4. **Compatibility Score** (0-100): Calculate weighted average of:
+   * Supply ratio compatibility (25%): ${marketCapRatio > 0.1 && marketCapRatio < 10 ? 100 : marketCapRatio > 0.01 && marketCapRatio < 100 ? 50 : 0}
+   * Dilution acceptability (30%): ${Math.max(0, 100 - (dilutionPercentage * 2))}
+   * Price impact tolerance (20%): Based on concentration parameters
+   * Vault funding capability (25%): Assess if ${daoB.symbol} DAO can fund ${requiredMint.toLocaleString()} tokens
 
-5. **Cross-Collateralization Setup** (CRITICAL):
-   * Native token vaults must accept USDC vault as collateral
-   * setLTV(USDC_vault, borrowLTV, liquidationLTV, 0) on both vaults
-   * Recommended: borrowLTV=0.9e4 (90%), liquidationLTV=0.93e4 (93%)
-   * DAOs deposit USDC as collateral, NOT native tokens
+5. **Dynamic Pricing Impact** (with ${concentrationX}e18/${concentrationY}e18 concentration):
+   - Calculate price impact for different swap volumes:
+     * 10% of supply: Minimal impact (<2%)
+     * 50% of supply: Moderate impact (5-10%)
+     * 100% of supply: Significant impact (>15%)
+   - Target: <5% impact for majority of swaps
 
-6. **EulerSwap Pool Parameters** (provide exact values):
-   * equilibriumReserve0/1: Set to 2-3x expected total swap volume
-   * priceX/priceY: Use 1e27 precision (e.g., 2e27 means token0 is 2x token1)
-   * concentrationX/Y: 0.7e18 to 0.95e18 (use e18 precision)
-   * fee: 0.001e18 to 0.003e18 (0.1-0.3%) 
-   * currReserve0/1: Initial seed liquidity (10-20% of total)
+6. **Vault Funding Requirements**:
+   - Only ${daoB.symbol} vault needs funding
+   - Required liquidity: ${(requiredMint * 1.2).toFixed(0)} tokens (20% buffer)
+   - No funding needed for ${daoA.symbol} vault (collateral sink only)
 
-Parameter Calculation Rules:
-   * High volatility (>50% monthly) → concentration = 0.7e18
-   * Medium volatility (20-50%) → concentration = 0.85e18
-   * Low volatility (<20%) → concentration = 0.95e18
-   * Set equilibrium reserves to handle full merger volume
-   * Price ratios must reflect current market prices  
+7. **Merger Type Classification**:
+   ${marketCapRatio > 5 ? 'Acquisition' : 
+     marketCapRatio > 0.5 && marketCapRatio < 2 ? 'Merger of Equals' :
+     'Strategic Alliance'}
+
+8. **EulerSwap Pool Parameters**:
+   {
+     vault0: "${daoA.symbol}VaultAddress",
+     vault1: "${daoB.symbol}VaultAddress", 
+     equilibriumReserve0: 1,
+     equilibriumReserve1: ${requiredMint.toFixed(0)},
+     priceX: 1e18,
+     priceY: ${Math.floor((daoAPrice / daoBPrice) * 1e18)},
+     concentrationX: ${concentrationX}e18,
+     concentrationY: ${concentrationY}e18,
+     fee: 0.003e18,
+     currReserve0: 1,
+     currReserve1: ${requiredMint.toFixed(0)}
+   }
+
+**Risk Assessment**: Focus on:
+   * Dilution Risk: Impact on ${daoB.symbol} holders (${dilutionPercentage.toFixed(1)}%)
+   * Price Impact: Slippage from large swaps with ${concentrationX}e18/${concentrationY}e18 concentration
+   * Vault Funding: ${daoB.symbol} DAO's ability to fund required liquidity
+   * Execution Timing: Optimal phasing to minimize market impact
+
 **Merger Context Data:**
 
 ${JSON.stringify(condensedContext, null, 2)}
@@ -614,75 +580,64 @@ Output Format:
 
 {
   "status": "[[Green/Yellow/Red]]",
-  "compatibilityScore": [[0-100]],
-  "summary": "[[Concise merger feasibility summary including treasury analysis and vault constraints]]",
+  "compatibilityScore": [[weighted average 0-100]],
+  "summary": "Merger feasibility assessment with key constraints",
+  "mergerType": "[[Acquisition/Merger of Equals/Strategic Alliance]]",
+  "keyMetrics": {
+    "supplyRatio": "[[marketCapRatio]]x",
+    "requiredMint": "[[requiredMint]] [[daoB.symbol]]",
+    "dilutionImpact": "[[dilutionPercentage]]%",
+    "priceImpactAt50%": "[[calculated]]%"
+  },
   "executionStrategy": {
-    "vaultConfiguration": {
-      "daoA": {
-        "vault": {
-          "requiredDeposit": "[[Amount]] [[Token]]",
-          "borrowLTV": [[0.7-0.9]],
-          "liquidationLTV": [[0.75-0.95]],
-          "supplyCap": "[[Amount or 'No limit']]",
-          "borrowCap": "[[Amount or 'No limit']]"
-        }
-      },
-      "daoB": {
-        "vault": {
-          "requiredDeposit": "[[Amount]] [[Token]]",
-          "borrowLTV": [[0.7-0.9]],
-          "liquidationLTV": [[0.75-0.95]],
-          "supplyCap": "[[Amount or 'No limit']]",
-          "borrowCap": "[[Amount or 'No limit']]"
-        }
-      }
+    "poolConfiguration": {
+      "vault0": "0x...",
+      "vault1": "0x...",
+      "equilibriumReserve0": "1",
+      "equilibriumReserve1": "[[requiredMint]]",
+      "concentrationX": "[[calculated concentrationX]]e18",
+      "concentrationY": "[[calculated concentrationY]]e18",
+      "priceX": "1e18",
+      "priceY": "[[calculated price ratio]]",
+      "fee": "0.003e18"
     },
-    "eulerSwapParameters": {
-      "equilibriumReserve0": "[[Amount]] [[TokenA]]",
-      "equilibriumReserve1": "[[Amount]] [[TokenB]]",
-      "priceX": [[Price ratio]],
-      "priceY": [[Price ratio]],
-      "concentrationX": [[0.7-0.95]],
-      "concentrationY": [[0.7-0.95]],
-      "fee": "[[0.001-0.003]]",
-      "currReserve0": "[[Initial amount]]",
-      "currReserve1": "[[Initial amount]]"
-    },
-    "swapSequence": [
+    "phaseOutToken": "[[daoA.symbol]]",
+    "survivingToken": "[[daoB.symbol]]",
+    "totalExecutionTime": "[[based on volume]]",
+    "recommendedPhases": [
       {
-        "step": 1,
-        "initiator": "[[DAO]]",
-        "amount": "[[Amount]] [[Token]]",
-        "expectedCrossDeposit": "[[Amount]] [[Token]]",
-        "cumulativeLiquidity": "[[Amount]]"
+        "phase": 1,
+        "description": "Deploy vaults and configure pool",
+        "duration": "1 day"
+      },
+      {
+        "phase": 2,
+        "description": "Execute [[X]]% of total swap volume",
+        "duration": "[[Y]] days"
       }
-    ],
-    "totalExecutionTime": "[[X]] days",
-    "finalPositions": {
-      "daoA": "[[Amount]] [[TokenB]] acquired",
-      "daoB": "[[Amount]] [[TokenA]] acquired"
-    }
+    ]
   },
   "riskAssessment": {
-    "liquidityRisk": {
+    "dilutionRisk": {
       "score": [[0-100]],
-      "mitigation": "[[Strategy]]"
+      "severity": "[[Low/Medium/High]]",
+      "mitigation": "Strategy to address"
     },
     "priceImpact": {
       "estimatedSlippage": "[[X]]%",
-      "mitigation": "[[Strategy]]"
+      "mitigation": "Phased execution over [[Y]] days"
     },
-    "collateralRisk": {
-      "requiredBuffer": "[[X]]%",
-      "mitigation": "[[Strategy]]"
+    "vaultFunding": {
+      "requiredLiquidity": "[[requiredMint * 1.2]]",
+      "fundingSource": "DAO treasury assessment"
     }
   },
   "recommendations": [
     {
-      "priority": "[[High/Medium/Low]]",
-      "action": "[[Specific action]]",
-      "rationale": "[[Why this matters for the merger]]",
-      "impact": "[[Expected outcome]]"
+      "priority": "High",
+      "action": "Specific actionable step",
+      "rationale": "Why this matters",
+      "impact": "Expected outcome"
     }
   ]
 }
@@ -785,7 +740,7 @@ app.post('/api/execution-summary', async (req, res) => {
 
     const summaryPrompt = `  
 A merger action was just executed in the EulerSwap DAO merger simulator.
-Analyze the execution outcome based on the cross-collateralization model where DAOs use USDC collateral to borrow native tokens.
+Analyze the execution outcome based on the one-sided JIT liquidity model where only the surviving token vault needs pre-funding.
 
 **Executed Action:**  
 ${JSON.stringify(action, null, 2)}  
@@ -798,36 +753,50 @@ Generate a JSON object analyzing the execution's impact on the merger process:
 {  
   "system_components_affected": [ "Component 1", "Component 2", "..." ],  
   "merger_metrics": [  
-    { "metric": "Cross-Deposit Accumulation", "value": "XX.X [[Token]]", "comment": "(enables X more swaps)" },  
-    { "metric": "USDC Collateral Utilization", "value": "XX.X%", "comment": "(X% of capacity)" },  
-    { "metric": "Borrowing Efficiency", "value": "XX.X%", "comment": "(vs traditional AMM)" },  
-    { "metric": "Merger Completion", "value": "XX.X%", "comment": "(X of Y swaps complete)" },
-    { "metric": "Price Impact", "value": "XX.X%", "comment": "(below X% target)" }
+    { "metric": "Phased-out Tokens Deposited", "value": "XX.X [[Token]]", "comment": "(used as collateral)" },  
+    { "metric": "Surviving Tokens Borrowed", "value": "XX.X [[Token]]", "comment": "(from pre-funded vault)" },  
+    { "metric": "Dilution Progress", "value": "XX.X%", "comment": "(of total XX% expected)" },
+    { "metric": "Price Impact", "value": "XX.X%", "comment": "(based on concentration parameters)" },
+    { "metric": "Merger Completion", "value": "XX.X%", "comment": "(of circulating supply swapped)" }
   ],  
   "liquidity_state": {
-    "vault_a_holdings": { "native": "XX [[Token]]", "opposite": "XX [[Token]]" },
-    "vault_b_holdings": { "native": "XX [[Token]]", "opposite": "XX [[Token]]" },
-    "cross_borrowable": "XX [[Token]] from each vault",
-    "efficiency_multiplier": "X.Xx vs initial deposits"
+    "phaseout_vault": { 
+      "collateral_received": "XX [[PhaseoutToken]]",
+      "borrowing_capacity": "XX [[SurvivingToken]]" 
+    },
+    "surviving_vault": { 
+      "pre_funded": "XX [[SurvivingToken]]",
+      "available_to_borrow": "XX [[SurvivingToken]]",
+      "borrowed_so_far": "XX [[SurvivingToken]]"
+    },
+    "price_discovery": "Current ratio: XX [[PhaseoutToken]]/[[SurvivingToken]]"
   },
   "next_recommended_actions": [  
-    "Execute swap X: [[DAO]] borrows [[Amount]] [[Token]]",
-    "Monitor USDC vault - currently XX% utilized",
-    "Adjust LTV if collateral ratio exceeds XX%"  
+    "Continue swaps: XX% of circulating supply remaining",
+    "Monitor price impact: currently XX% slippage",
+    "Vault funding check: XX [[SurvivingToken]] available",
+    "Adjust execution pace if price impact exceeds X%"
   ]  
 }  
   
 **Instructions:**  
-1. **system_components_affected**: List affected components (e.g., "SUSHI Vault", "UNI Vault", "USDC Collateral Positions", "Cross-Deposit Liquidity")
-2. **merger_metrics**: Track merger-specific KPIs including cross-deposits, collateral usage, and capital efficiency
-3. **liquidity_state**: Show how cross-deposits are accumulating in each vault
-4. **next_recommended_actions**: Provide specific next steps based on the cross-collateralization model
+1. **system_components_affected**: List affected components (e.g., "[PhaseoutToken] Vault", "[SurvivingToken] Vault", "EulerSwap AMM Curve", "Dynamic Pricing Mechanism", "JIT Borrowing Engine")
+2. **merger_metrics**: Track one-sided JIT specific KPIs including collateral deposits, JIT borrowing, dilution progress, and price impact
+3. **liquidity_state**: Show vault states for the asymmetric liquidity model (phaseout vault receives collateral, surviving vault provides borrowable liquidity)
+4. **next_recommended_actions**: Provide specific next steps based on merger progress and price impact
 
 Focus on how the action affects:
-- Cross-deposit accumulation (tokens deposited in opposite vaults)
-- USDC collateral utilization and remaining capacity
-- Capital efficiency vs traditional methods
-- Progress toward merger completion
+- Phased-out token deposits as collateral
+- Surviving token JIT borrowing from pre-funded vault
+- Dynamic pricing through concentrated AMM curve
+- Progress toward complete merger (% of circulating supply)
+- Capital efficiency gains (32-40x vs traditional)
+
+Remember:
+- equilibriumReserve0 = 1 (phaseout side)
+- No initial liquidity deployment (currReserve0 = 1, currReserve1 = ${requiredMint.toFixed(0)})
+- Only surviving token vault needs funding
+- Price adjusts dynamically based on swap volume
 
 Provide ONLY the raw JSON object in your response.
     `;
@@ -891,12 +860,17 @@ app.get('/api/test', (req, res) => {
 // Start server
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
-  console.log(`Test endpoint: http://localhost:${PORT}/api/test`);
-  console.log(`Prices endpoint: http://localhost:${PORT}/api/prices`);
-  console.log(`Treasuries endpoint: http://localhost:${PORT}/api/treasuries`);
-  console.log(`\n--- EulerSwap Endpoints ---`);
-  console.log(`Euler Vaults: GET http://localhost:${PORT}/api/euler-vaults`);
-  console.log(`\n--- Analysis Endpoints ---`);
+  console.log(`\n--- Core Endpoints ---`);
+  console.log(`Test endpoint: GET http://localhost:${PORT}/api/test`);
+  console.log(`Prices endpoint: GET http://localhost:${PORT}/api/prices`);
+  console.log(`Token Circulation: GET http://localhost:${PORT}/api/token-circulation/:token`);
+  console.log(`\n--- AI-Powered Endpoints ---`);
+  console.log(`Chat endpoint: POST http://localhost:${PORT}/api/chat`);
   console.log(`Analysis endpoint: POST http://localhost:${PORT}/api/analysis`);
-  console.log(`Execution Summary endpoint: POST http://localhost:${PORT}/api/execution-summary`);
+  console.log(`Execution Summary: POST http://localhost:${PORT}/api/execution-summary`);
+  console.log(`\n--- One-Sided JIT Model Features ---`);
+  console.log(`• Zero initial liquidity deployment`);
+  console.log(`• Only surviving token vault needs funding`);
+  console.log(`• Up to 40x capital efficiency`);
+  console.log(`• Dynamic pricing through AMM curves`);
 }); 
