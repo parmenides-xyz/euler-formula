@@ -2,11 +2,11 @@
 
 ## Overview
 
-FORMULA simulates DAO mergers using EulerSwap's one-sided "JIT" liquidity provisioning. Unlike traditional AMMs requiring dual-sided liquidity, EulerSwap's architecture enables capital-efficient mergers where only the surviving DAO funds a vault, while the phased-out DAO's tokens serve as collateral for "JIT" borrowing. This creates a truly asymmetric pool with dynamic price discovery through configurable concentration parameters.
+FORMULA simulates DAO mergers using EulerSwap's one-sided "JIT" liquidity provisioning. Unlike traditional AMMs requiring dual-sided liquidity, EulerSwap's architecture enables capital-efficient mergers where only the surviving DAO funds a vault, while the phased-out DAO's tokens serve as collateral for "JIT" borrowing. This creates an asymmetric pool with dynamic price discovery through configurable concentration parameters.
 
 ## Problems Solved by EulerSwap's Approach
 
-Based on analysis of 65+ DAO M&A deals (averaging $30M each), traditional merger approaches suffer from fundamental flaws that EulerSwap's one-sided JIT liquidity model directly addresses:
+Based on analysis of 65+ DAO M&A deals (averaging $30M each), traditional merger approaches suffer from fundamental flaws that EulerSwap's one-sided "JIT" liquidity model directly addresses:
 
 ### **The Valuation Crisis: Dynamic Price Discovery vs Fixed-Rate Swaps**
 
